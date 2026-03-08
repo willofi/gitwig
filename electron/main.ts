@@ -45,10 +45,13 @@ function setupUpdaterListeners(mainWin: BrowserWindow) {
 
   autoUpdater.on('error', (err) => {
     const msg = err.message || '';
-    // 개발 환경 또는 릴리즈 미존재 시 무시
-    if (!app.isPackaged || msg.includes('No published versions') || msg.includes('net::') || msg.includes('ENOTFOUND')) {
+    // 릴리즈 미존재 또는 네트워크 오류 → 최신 버전으로 처리
+    if (msg.includes('No published versions') || msg.includes('net::') || msg.includes('ENOTFOUND') || msg.includes('HttpError')) {
+      mainWin.webContents.send('update:not-available');
       return;
     }
+    // 개발 환경은 무시
+    if (!app.isPackaged) return;
     mainWin.webContents.send('update:error', msg);
   });
 }
