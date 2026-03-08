@@ -1,6 +1,6 @@
 import React from 'react';
 import { useRepoStore } from '@/store/repoStore';
-import { Download, Upload, RefreshCw, Settings, Sun, Moon, Terminal, Loader2 } from 'lucide-react';
+import { RefreshCw, Settings, Terminal, Loader2 } from 'lucide-react';
 
 interface MainToolbarProps {
   setShowSettingsModal: (show: boolean) => void;
@@ -43,8 +43,14 @@ const MainToolbar: React.FC<MainToolbarProps> = ({ setShowSettingsModal }) => {
 
   return (
     <div className={`h-12 bg-[#333333] border-b border-[#1e1e1e] flex items-center justify-between px-4`}>
-      {/* Empty div to balance spacing */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2">
+        <button
+          onClick={handleFetch}
+          className="p-2 hover:bg-[#444444] rounded transition-colors"
+          title="Fetch"
+        >
+          <RefreshCw size={18} className={isExecuting && lastCommand?.includes('fetch') ? 'animate-spin' : ''} />
+        </button>
       </div>
 
       {/* Global Command Display */}
@@ -70,23 +76,13 @@ const MainToolbar: React.FC<MainToolbarProps> = ({ setShowSettingsModal }) => {
 
       <div className="flex items-center gap-2">
         <button
-          onClick={handleFetch}
-          className="p-2 hover:bg-[#444444] rounded transition-colors"
-          title="Fetch"
-        >
-          <RefreshCw size={18} className={isExecuting && lastCommand?.includes('fetch') ? 'animate-spin' : ''} />
-        </button>
-        <button 
           onClick={() => setViewMode(viewMode === 'logs' ? 'repo' : 'logs')}
           className={`p-2 rounded transition-colors ${viewMode === 'logs' ? 'bg-[#1f6feb] text-white' : 'hover:bg-[#444444] text-[#cccccc]'}`}
           title="Git Activity Log"
         >
           <Terminal size={18} />
         </button>
-        <button className="p-2 hover:bg-[#444444] rounded transition-colors" title="Toggle Theme">
-          <Moon size={18} />
-        </button>
-        <button 
+        <button
           onClick={() => setShowSettingsModal(true)}
           className="p-2 hover:bg-[#444444] rounded transition-colors" title="Settings"
         >
