@@ -79,28 +79,67 @@ export interface GitAPI {
   fetch: (path: string) => Promise<void>;
   checkIsRepo: (path: string) => Promise<boolean>;
   getCommitFiles: (path: string, hash: string) => Promise<{ status: string, path: string }[]>;
-  getDiff: (path: string, hash1?: string, hash2?: string) => Promise<string>;
+  getDiff: (path: string, hash1?: string, hash2?: string, filePath?: string) => Promise<string>;
   readFile: (path: string) => Promise<string>;
   writeFile: (path: string, content: string) => Promise<void>;
   add: (path: string, files: string | string[]) => Promise<void>;
+  addAll: (path: string) => Promise<void>;
+  resetAll: (path: string) => Promise<void>;
   discardChanges: (path: string, files: string | string[]) => Promise<void>;
   reset: (path: string, files: string | string[]) => Promise<void>;
   resetHard: (path: string, hash: string) => Promise<void>;
   resetMode: (path: string, hash: string, mode: 'soft' | 'mixed' | 'hard' | 'keep') => Promise<void>;
   squash: (path: string, startHash: string, endHash: string, message: string) => Promise<void>;
+  cherryPick: (path: string, hash: string) => Promise<void>;
   stash: (path: string, message?: string) => Promise<void>;
   applyStash: (path: string, index: number) => Promise<void>;
   getStashes: (path: string) => Promise<{ all: any[] }>;
+}
+
+export interface WindowAPI {
+  openSplitDiff: (params: { repoPath: string; hash: string; parentHash: string; filePath: string }) => Promise<void>;
+}
+
+export interface UpdateInfo {
+  version: string;
+  releaseNotes?: string;
+}
+
+export interface DownloadProgress {
+  percent: number;
+  transferred: number;
+  total: number;
+  bytesPerSecond: number;
+}
+
+export interface UpdaterAPI {
+  onChecking:     (cb: () => void)                       => void;
+  onAvailable:    (cb: (info: UpdateInfo) => void)       => void;
+  onNotAvailable: (cb: () => void)                       => void;
+  onProgress:     (cb: (p: DownloadProgress) => void)    => void;
+  onDownloaded:   (cb: (info: UpdateInfo) => void)       => void;
+  onError:        (cb: (msg: string) => void)            => void;
+  download:       ()                                     => Promise<void>;
+  install:        ()                                     => Promise<void>;
+  check:          ()                                     => Promise<void>;
+}
+
+export interface AppAPI {
+  getVersion: () => Promise<string>;
+  isPackaged: () => Promise<boolean>;
 }
 
 declare global {
   interface Window {
     electronAPI: {
       platform: string;
+      app: AppAPI;
       git: GitAPI;
       dialog: {
         selectDirectory: () => Promise<string | null>;
-      }
+      };
+      window: WindowAPI;
+      updater: UpdaterAPI;
     }
   }
 }

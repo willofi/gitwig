@@ -30,7 +30,7 @@ ipcMain.handle('git:getLog', async (_, path: string, options?: any) => {
   try {
     // [FIX] 구분자를 더 유니크하게 변경하여 데이터 내 포함될 가능성을 줄임
     const DELIMITER = ' @%@ ';
-    const args = ['log', '--graph', '--decorate=short', '--color=never', `--format=format:%H${DELIMITER}%P${DELIMITER}%d${DELIMITER}%s${DELIMITER}%an${DELIMITER}%ae${DELIMITER}%at`];
+    const args = ['log', '--decorate=short', '--color=never', `--format=format:%H${DELIMITER}%P${DELIMITER}%d${DELIMITER}%s${DELIMITER}%an${DELIMITER}%ae${DELIMITER}%at`];
     
     if (maxCount) {
       args.push(`-n`, maxCount.toString());
@@ -178,20 +178,40 @@ ipcMain.handle('git:writeFile', async (_, path: string, content: string) => {
 
 ipcMain.handle('git:getCommitFiles', async (_, path: string, hash: string) => {
   const git = getGit(path);
-  const result = await git.raw(['show', '--name-status', '--format=format:', hash]);
-  return result.trim().split('\n').map(line => {
-    const [status, filePath] = line.split(/\s+/);
-    return { status, path: filePath };
-  });
+
+  const parse = (raw: string) =>
+    raw.trim().split('\n').filter(Boolean).map(line => {
+      const parts = line.split(/\t/);
+      const status = parts[0][0]; // R100 → R, C100 → C 등 첫 글자만
+      const filePath = parts.length > 2
+        ? `${parts[1]} → ${parts[2]}` // 이름 변경
+        : parts[1];
+      return { status, path: filePath };
+    }).filter(f => f.path);
+
+  try {
+    // 첫 번째 부모와의 diff — 머지 커밋도 올바르게 파일 목록 반환
+    const result = await git.raw(['diff', '--name-status', `${hash}^1`, hash]);
+    return parse(result);
+  } catch {
+    // 루트 커밋(부모 없음) 등 fallback
+    try {
+      const result = await git.raw(['show', '--name-status', '--format=format:', hash]);
+      return parse(result);
+    } catch {
+      return [];
+    }
+  }
 });
 
-ipcMain.handle('git:getDiff', async (_, path: string, hash1?: string, hash2?: string) => {
+ipcMain.handle('git:getDiff', async (_, path: string, hash1?: string, hash2?: string, filePath?: string) => {
   const git = getGit(path);
   if (hash2) {
-    return await git.diff([hash1!, hash2]);
+    const args: string[] = [hash1!, hash2];
+    if (filePath) args.push('--', filePath);
+    return await git.diff(args);
   } else if (hash1) {
     if (hash1 === 'UPSTREAM') {
-      // Compare local working tree with the upstream tracking branch
       return await git.diff(['@{u}']);
     }
     return await git.show([hash1]);
@@ -242,6 +262,21 @@ ipcMain.handle('git:squash', async (_, path: string, startHash: string, endHash:
     console.error('Squash failed:', e);
     throw e;
   }
+});
+
+ipcMain.handle('git:addAll', async (_, path: string) => {
+  const git = getGit(path);
+  return await git.add('-A');
+});
+
+ipcMain.handle('git:resetAll', async (_, path: string) => {
+  const git = getGit(path);
+  return await git.raw(['reset', 'HEAD']);
+});
+
+ipcMain.handle('git:cherryPick', async (_, path: string, hash: string) => {
+  const git = getGit(path);
+  return await git.raw(['cherry-pick', hash]);
 });
 
 ipcMain.handle('dialog:selectDirectory', async () => {
