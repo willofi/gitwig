@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { Commit, GitStatus, Branch } from '@/types/git.types';
 import { processCommitsForGraph } from '@/utils/graphLayout';
+import type { AppTheme } from '@/utils/theme';
 
 interface GitLogEntry {
   id: string;
@@ -24,6 +25,7 @@ interface LogFilterOptions {
 
 interface RepoState {
   currentPath: string | null;
+  recentProjects: string[];
   commits: Commit[];
   filteredCommits: Commit[];
   status: GitStatus | null;
@@ -47,7 +49,10 @@ interface RepoState {
   loadedCount: number;
   hasMore: boolean;
   autoFetchInterval: number; // minutes, 0 for disabled
+  theme: AppTheme;
   setCurrentPath: (path: string | null) => void;
+  removeRecentProject: (path: string) => void;
+  setTheme: (theme: AppTheme) => void;
   setFilter: (filter: string) => void;
   setUserFilter: (user: string | null) => void;
   setDateFilter: (filter: DateFilter) => void;
@@ -64,8 +69,18 @@ interface RepoState {
   setSelectedCommit: (commit: Commit | null) => void;
 }
 
+const loadRecentProjects = (): string[] => {
+  try { return JSON.parse(localStorage.getItem('gitwig-recent-projects') || '[]'); }
+  catch { return []; }
+};
+
+const saveRecentProjects = (list: string[]) => {
+  localStorage.setItem('gitwig-recent-projects', JSON.stringify(list));
+};
+
 export const useRepoStore = create<RepoState>((set, get) => ({
   currentPath: null,
+  recentProjects: loadRecentProjects(),
   commits: [],
   filteredCommits: [],
   status: null,
@@ -85,14 +100,45 @@ export const useRepoStore = create<RepoState>((set, get) => ({
   viewingBranch: null,
   highlightedBranch: null,
   logFilterOptions: { firstParent: false, mergesOnly: false },
-  pageSize: 300,
-  loadedCount: 300,
+  pageSize: 5000,
+  loadedCount: 5000,
   hasMore: true,
-  autoFetchInterval: 0, // Default to disabled
-  
+  autoFetchInterval: 0,
+  theme: (localStorage.getItem('gitwig-theme') as AppTheme) || 'dark',
+
+  setTheme: (theme) => {
+    localStorage.setItem('gitwig-theme', theme);
+    set({ theme });
+  },
+
+  removeRecentProject: (path) => {
+    const updated = get().recentProjects.filter(p => p !== path);
+    saveRecentProjects(updated);
+    set({ recentProjects: updated });
+  },
+
   setCurrentPath: (path) => {
     set({ currentPath: path, viewingBranch: null, highlightedBranch: null, loadedCount: 300, hasMore: true, logFilterOptions: { firstParent: false, mergesOnly: false } });
-    get().refresh(true);
+    if (!path) return;
+    const prev = get().recentProjects.filter(p => p !== path);
+    const updated = [...prev, path].slice(-20);
+    saveRecentProjects(updated);
+    set({ recentProjects: updated });
+
+    // 프로젝트 최초 오픈 시 현재 체크아웃된 브랜치를 기본 뷰로 설정
+    (async () => {
+      try {
+        const isRepo = await window.electronAPI.git.checkIsRepo(path);
+        if (isRepo) {
+          const result = await window.electronAPI.git.getBranches(path);
+          if (result?.current) {
+            set({ viewingBranch: result.current, highlightedBranch: result.current });
+          }
+        }
+      } finally {
+        get().refresh(true);
+      }
+    })();
   },
 
   setViewMode: (mode) => set({ viewMode: mode }),
@@ -332,10 +378,11 @@ export const useRepoStore = create<RepoState>((set, get) => ({
           } catch (e) {}
         }
         if (fetchedCommits.length > 0) {
-          fetchedCommits.sort((a, b) => (b.date || 0) - (a.date || 0));
           fetchedCommits = processCommitsForGraph(fetchedCommits);
         }
       }
+
+      const newHasMore = fetchedCommits.length >= currentLoadedCount;
 
       set({
         commits: fetchedCommits,
@@ -345,10 +392,22 @@ export const useRepoStore = create<RepoState>((set, get) => ({
         currentBranch: branchesRes.status === 'fulfilled' ? branchesRes.value.current : null,
         stashes: stashesRes.status === 'fulfilled' ? stashesRes.value.all : [],
         isLoading: false,
-        hasMore: fetchedCommits.length >= currentLoadedCount
+        hasMore: newHasMore
       });
 
       get().applyFilters();
+
+      // 아직 로드할 커밋이 있으면 필터 없는 상태에서 자동으로 백그라운드 로딩
+      const MAX_AUTO_LOAD = 50000;
+      if (newHasMore) {
+        const s = get();
+        if (!s.filter && !s.userFilter && s.dateFilter.type === 'all' && s.loadedCount < MAX_AUTO_LOAD) {
+          setTimeout(() => {
+            const cur = get();
+            if (cur.hasMore && !cur.isLoading) cur.loadMore();
+          }, 200);
+        }
+      }
     } catch (error) {
       console.error('Critical error in refresh:', error);
       set({ isLoading: false });

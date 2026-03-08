@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useRepoStore } from '@/store/repoStore';
 import { GitBranch, ChevronDown, ChevronRight, Check, Search, MoreVertical, Plus, Edit2, Trash2, GitMerge, RefreshCw, ArrowUpCircle, Folder, FolderOpen, Star, ArrowUp, ArrowDown } from 'lucide-react';
 import PromptModal from '../Common/PromptModal';
@@ -16,6 +16,12 @@ const BranchPanel: React.FC = () => {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['local', 'remote']));
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, branch: string } | null>(null);
   const [promptConfig, setPromptConfig] = useState<{ title: string, message: string, initialValue: string, action: (val: string) => void } | null>(null);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setContextMenu(null); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   const runWithLog = async (cmd: string, action: () => Promise<any>) => {
     const logId = addGitLog({ command: cmd, status: 'pending' });
@@ -322,7 +328,7 @@ const BranchPanel: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#252526] overflow-hidden" onClick={() => setContextMenu(null)}>
+    <div className="flex flex-col flex-1 min-h-0 bg-[#252526] overflow-hidden" onClick={() => setContextMenu(null)}>
       <div className="p-3 border-b border-[#333333] space-y-2">
         <h2 className="text-[10px] font-bold uppercase tracking-wider text-[#666666]">Branches</h2>
         <div className="relative">
@@ -337,7 +343,7 @@ const BranchPanel: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto py-2">
+      <div className="flex-1 min-h-0 overflow-auto py-2">
         {renderNode(tree.local, 0, 'local')}
         {renderNode(tree.remote, 0, 'remote')}
       </div>
@@ -357,7 +363,7 @@ const BranchPanel: React.FC = () => {
 
       {contextMenu && (
         <div
-          className="fixed z-[100] bg-[#252526] border border-[#454545] shadow-xl py-1 rounded-md min-w-[180px] text-[12px] text-[#cccccc]"
+          className="fixed z-[100] bg-[#161b22] border border-[#30363d] shadow-2xl py-1 rounded-md min-w-[180px] text-[12px] text-[#cccccc]"
           style={{ top: contextMenu.y, left: contextMenu.x }}
           onClick={e => e.stopPropagation()}
         >
