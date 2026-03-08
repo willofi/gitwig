@@ -2,12 +2,6 @@ import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'path';
 import { autoUpdater } from 'electron-updater';
 
-// [FIX] GPU 관련 크래시(SharedImageManager, 흰 화면) 방지 - app 준비 전에 호출 필수
-app.disableHardwareAcceleration();
-app.commandLine.appendSwitch('disable-gpu');
-app.commandLine.appendSwitch('disable-gpu-sandbox');
-app.commandLine.appendSwitch('disable-gpu-compositing');
-app.commandLine.appendSwitch('disable-features', 'VizDisplayCompositor');
 
 process.env.DIST = path.join(__dirname, '../dist');
 process.env.PUBLIC = app.isPackaged ? process.env.DIST : path.join(process.env.DIST, '../public');
@@ -52,7 +46,13 @@ function setupAutoUpdater(mainWin: BrowserWindow) {
   });
 
   autoUpdater.on('error', (err) => {
-    mainWin.webContents.send('update:error', err.message);
+    // 릴리즈 없음 / 네트워크 오류는 사용자에게 노출하지 않음
+    const msg = err.message || '';
+    if (msg.includes('No published versions') || msg.includes('net::') || msg.includes('ENOTFOUND')) {
+      console.log('[AutoUpdater] No update available or network issue (suppressed):', msg);
+      return;
+    }
+    mainWin.webContents.send('update:error', msg);
     console.error('[AutoUpdater] Error:', err);
   });
 
