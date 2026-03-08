@@ -13,10 +13,8 @@ let win: BrowserWindow | null;
 autoUpdater.autoDownload = false;        // 사용자 확인 후 다운로드
 autoUpdater.autoInstallOnAppQuit = true; // 종료 시 자동 설치
 
-function setupAutoUpdater(mainWin: BrowserWindow) {
-  // 개발 환경에서는 업데이트 체크 건너뜀
-  if (!app.isPackaged) return;
-
+// 수동 업데이트 전용 — 자동 체크 없음, 이벤트 리스너만 등록
+function setupUpdaterListeners(mainWin: BrowserWindow) {
   autoUpdater.on('checking-for-update', () => {
     mainWin.webContents.send('update:checking');
   });
@@ -46,27 +44,13 @@ function setupAutoUpdater(mainWin: BrowserWindow) {
   });
 
   autoUpdater.on('error', (err) => {
-    // 릴리즈 없음 / 네트워크 오류는 사용자에게 노출하지 않음
     const msg = err.message || '';
-    if (msg.includes('No published versions') || msg.includes('net::') || msg.includes('ENOTFOUND')) {
-      console.log('[AutoUpdater] No update available or network issue (suppressed):', msg);
+    // 개발 환경 또는 릴리즈 미존재 시 무시
+    if (!app.isPackaged || msg.includes('No published versions') || msg.includes('net::') || msg.includes('ENOTFOUND')) {
       return;
     }
     mainWin.webContents.send('update:error', msg);
-    console.error('[AutoUpdater] Error:', err);
   });
-
-  // 앱 시작 5초 후 업데이트 체크 (UI 로드 완료 대기)
-  setTimeout(() => {
-    autoUpdater.checkForUpdates().catch(err => {
-      console.error('[AutoUpdater] checkForUpdates failed:', err);
-    });
-  }, 5000);
-
-  // 이후 매 4시간마다 재확인
-  setInterval(() => {
-    autoUpdater.checkForUpdates().catch(() => {});
-  }, 4 * 60 * 60 * 1000);
 }
 
 // IPC: 앱 버전 조회
@@ -120,7 +104,7 @@ function createWindow() {
   }
 
   win.webContents.on('did-finish-load', () => {
-    setupAutoUpdater(win!);
+    setupUpdaterListeners(win!);
   });
 }
 
