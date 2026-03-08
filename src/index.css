@@ -15,26 +15,104 @@ body {
   height: 100vh;
 }
 
-/* Custom Scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+/* ── Dark Scrollbar (default) ──────────────────────────── */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.10); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.20); }
+* { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.10) transparent; }
+
+/* ══════════════════════════════════════════════════════════
+   LIGHT THEME — [data-theme="light"] overrides
+   ══════════════════════════════════════════════════════════ */
+
+[data-theme="light"] body {
+  background-color: #ffffff;
+  color: #1f2328;
 }
 
-::-webkit-scrollbar-track {
-  background: transparent;
-}
+/* Light scrollbar */
+[data-theme="light"] ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.14); }
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.24); }
+[data-theme="light"] * { scrollbar-color: rgba(0,0,0,0.14) transparent; }
 
-::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
-}
+/* ── Backgrounds ─────────────────────────────────────────── */
+[data-theme="light"] .bg-\[\#0d1117\]  { background-color: #f6f8fa !important; }
+[data-theme="light"] .bg-\[\#161b22\]  { background-color: #edf0f3 !important; }
+[data-theme="light"] .bg-\[\#1c2128\]  { background-color: #eef0f3 !important; }
+[data-theme="light"] .bg-\[\#1e1e1e\]  { background-color: #ffffff !important; }
+[data-theme="light"] .bg-\[\#21262d\]  { background-color: #eaeef2 !important; }
+[data-theme="light"] .bg-\[\#252526\]  { background-color: #f8f9fb !important; }
+[data-theme="light"] .bg-\[\#2d2d2d\]  { background-color: #f3f4f6 !important; }
+[data-theme="light"] .bg-\[\#333333\]  { background-color: #ebeff3 !important; }
+[data-theme="light"] .bg-\[\#37373d\]  { background-color: #dbeafe !important; }
+[data-theme="light"] .bg-\[\#3d3d3d\]  { background-color: #e2e5ea !important; }
 
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
-}
+/* ── Hover backgrounds ───────────────────────────────────── */
+[data-theme="light"] .hover\:bg-\[\#2a2d2e\]:hover { background-color: #eef0f3 !important; }
+[data-theme="light"] .hover\:bg-\[\#2d2d30\]:hover { background-color: #eef0f3 !important; }
+[data-theme="light"] .hover\:bg-\[\#444444\]:hover  { background-color: #d8dde3 !important; }
+[data-theme="light"] .hover\:bg-\[\#30363d\]:hover  { background-color: #d0d7de !important; }
 
-* {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+/* ── Commit button (active) ──────────────────────────────── */
+[data-theme="light"] .bg-\[\#0e639c\]          { background-color: #e2e8f0 !important; }
+[data-theme="light"] .hover\:bg-\[\#1177bb\]:hover { background-color: #d0d7de !important; }
+
+/* ── Misc backgrounds ────────────────────────────────────── */
+[data-theme="light"] .bg-black\/20  { background-color: rgba(0,0,0,0.04) !important; }
+[data-theme="light"] .bg-\[\#1f6feb\] { background-color: #0969da !important; }
+
+/* ── Text ────────────────────────────────────────────────── */
+[data-theme="light"] .text-\[\#cccccc\]  { color: #1f2328 !important; }
+[data-theme="light"] .text-\[\#e6edf3\]  { color: #1f2328 !important; }
+[data-theme="light"] .text-\[\#c9d1d9\]  { color: #24292f !important; }
+[data-theme="light"] .text-\[\#8b949e\]  { color: #57606a !important; }
+[data-theme="light"] .text-\[\#9ca3af\]  { color: #636c76 !important; }
+[data-theme="light"] .text-\[\#666666\]  { color: #636c76 !important; }
+[data-theme="light"] .text-\[\#484f58\]  { color: #848d97 !important; }
+[data-theme="light"] .text-\[\#58a6ff\]  { color: #0969da !important; }
+[data-theme="light"] .text-\[\#d2a8ff\]  { color: #8250df !important; }
+[data-theme="light"] .text-\[\#79c0ff\]  { color: #0969da !important; }
+
+/* ── Borders ─────────────────────────────────────────────── */
+[data-theme="light"] .border-\[\#30363d\]    { border-color: #d0d7de !important; }
+[data-theme="light"] .border-\[\#333333\]    { border-color: #d0d7de !important; }
+[data-theme="light"] .border-\[\#1e1e1e\]    { border-color: #e1e4e8 !important; }
+[data-theme="light"] .border-\[\#2ea043\]    { border-color: #2da44e !important; }
+[data-theme="light"] .border-\[\#30363d\]\/50 { border-color: rgba(208,215,222,0.5) !important; }
+
+/* ── Ring / focus ────────────────────────────────────────── */
+[data-theme="light"] .focus\:border-\[\#1f6feb\]:focus { border-color: #0969da !important; }
+
+/* ── Commit graph selected state ─────────────────────────── */
+[data-theme="light"] .shadow-\[0_0_8px_rgba\(31\,111\,235\,0\.2\)\] {
+  box-shadow: 0 0 8px rgba(9,105,218,0.2) !important;
 }
+[data-theme="light"] .border-\[\#1f6feb\]\/50 { border-color: rgba(9,105,218,0.4) !important; }
+
+/* ── Staging / panels ────────────────────────────────────── */
+[data-theme="light"] .scrollbar-thumb-\[\#454545\] { --tw-scrollbar-thumb: #c8cdd3; }
+
+/* ── Additional backgrounds ──────────────────────────────── */
+[data-theme="light"] .bg-\[\#1f2937\]  { background-color: #dbeafe !important; }
+[data-theme="light"] .bg-\[\#2d333b\]  { background-color: #eaeef2 !important; }
+[data-theme="light"] .bg-\[\#30363d\]  { background-color: #e2e8f0 !important; }
+[data-theme="light"] .bg-\[\#161b22\]\/50 { background-color: rgba(236,240,243,0.5) !important; }
+
+/* ── Additional hover backgrounds ────────────────────────── */
+[data-theme="light"] .hover\:bg-\[\#31363f\]:hover  { background-color: #d0d7de !important; }
+[data-theme="light"] .hover\:bg-\[\#333333\]:hover   { background-color: #ebeff3 !important; }
+[data-theme="light"] .hover\:bg-\[\#161b22\]:hover   { background-color: #edf0f3 !important; }
+
+/* ── Disabled state ──────────────────────────────────────── */
+[data-theme="light"] .disabled\:bg-\[\#333333\]:disabled { background-color: #d0d7de !important; }
+[data-theme="light"] .disabled\:text-\[\#666666\]:disabled { color: #8c959f !important; }
+
+/* ── Text white override ─────────────────────────────────── */
+[data-theme="light"] .text-white { color: #1f2328 !important; }
+[data-theme="light"] .hover\:text-white:hover { color: #0969da !important; }
+
+/* ── Additional borders ──────────────────────────────────── */
+[data-theme="light"] .border-\[\#444c56\] { border-color: #c1c8d0 !important; }
+[data-theme="light"] .border-\[\#484f58\] { border-color: #d0d7de !important; }
+[data-theme="light"] .border-\[\#3c3c3c\] { border-color: #d0d7de !important; }
