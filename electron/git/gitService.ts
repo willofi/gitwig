@@ -63,7 +63,20 @@ ipcMain.handle('git:getCurrentBranch', async (_, path: string) => {
 ipcMain.handle('git:getStatus', async (_, path: string) => {
   const git = getGit(path);
   const status = await git.status();
-  return status;
+  return {
+    not_added: status.not_added,
+    conflicted: status.conflicted,
+    created: status.created,
+    deleted: status.deleted,
+    modified: status.modified,
+    renamed: status.renamed,
+    staged: status.staged,
+    files: status.files,
+    ahead: status.ahead,
+    behind: status.behind,
+    current: status.current,
+    tracking: status.tracking,
+  };
 });
 
 ipcMain.handle('git:getBranches', async (_, path: string) => {
@@ -71,7 +84,7 @@ ipcMain.handle('git:getBranches', async (_, path: string) => {
 
   // git.branch()와 for-each-ref를 병렬 실행
   const [branches, rawData] = await Promise.all([
-    git.branch(),
+    git.branch(['-a']),
     git.raw(['for-each-ref', '--format=%(refname:short)@%@%(upstream:track)', 'refs/heads'])
       .catch(() => ''),
   ]);
@@ -90,7 +103,21 @@ ipcMain.handle('git:getBranches', async (_, path: string) => {
     }
   }
 
-  return branches;
+  return {
+    all: branches.all,
+    current: branches.current,
+    branches: Object.fromEntries(
+      Object.entries(branches.branches).map(([k, v]) => [k, {
+        name: (v as any).name,
+        commit: (v as any).commit,
+        label: (v as any).label,
+        current: (v as any).current,
+        linkedWorkTree: (v as any).linkedWorkTree,
+        ahead: (v as any).ahead ?? 0,
+        behind: (v as any).behind ?? 0,
+      }])
+    ),
+  };
 });
 
 ipcMain.handle('git:checkout', async (_, path: string, branch: string, options?: any) => {
