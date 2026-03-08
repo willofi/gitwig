@@ -1,16 +1,25 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useState, useRef } from 'react';
 import { useRepoStore } from '@/store/repoStore';
+import { useShallow } from 'zustand/react/shallow';
 import { FileText, Calendar, User, Hash, GitMerge } from 'lucide-react';
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import DiffViewer from './DiffViewer';
 
 const CommitDetail: React.FC = () => {
-  const { selectedCommit, currentPath, addGitLog, updateGitLog } = useRepoStore();
-  const [files, setFiles] = useState<{ status: string, path: string }[]>([]);
+  const { selectedCommit, currentPath, addGitLog, updateGitLog } = useRepoStore(
+    useShallow(s => ({
+      selectedCommit: s.selectedCommit,
+      currentPath: s.currentPath,
+      addGitLog: s.addGitLog,
+      updateGitLog: s.updateGitLog,
+    }))
+  );
+  const [loaded, setLoaded] = useState<{ files: { status: string, path: string }[], body: string } | null>(null);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [diff, setDiff] = useState<string>('');
   const activeFileRef = useRef<string | null>(null);
+  const activeHashRef = useRef<string | null>(null);
 
   const runWithLog = async (cmd: string, action: () => Promise<any>) => {
     const logId = addGitLog({ command: cmd, status: 'pending' });
@@ -25,16 +34,31 @@ const CommitDetail: React.FC = () => {
     }
   };
 
+  // paint 전에 동기적으로 초기화
+  useLayoutEffect(() => {
+    setLoaded(null);
+    setSelectedFile(null);
+    activeFileRef.current = null;
+    setDiff('');
+    activeHashRef.current = selectedCommit?.hash ?? null;
+  }, [selectedCommit?.hash, currentPath]);
+
+  // body + 파일 목록을 병렬로 로드해 한번에 표시
   useEffect(() => {
-    if (selectedCommit && currentPath) {
-      runWithLog(`git diff ${selectedCommit.hash.substring(0, 7)}^1 -- (files)`, () =>
-        window.electronAPI.git.getCommitFiles(currentPath, selectedCommit.hash)
-      ).then(setFiles).catch(() => setFiles([]));
-      setSelectedFile(null);
-      activeFileRef.current = null;
-      setDiff('');
-    }
-  }, [selectedCommit, currentPath]);
+    if (!selectedCommit || !currentPath) return;
+    const hash = selectedCommit.hash;
+    Promise.all([
+      window.electronAPI.git.getCommitFiles(currentPath, hash).catch(() => []),
+      runWithLog(`git show ${hash.substring(0, 7)}`, () =>
+        window.electronAPI.git.getShow(currentPath, hash)
+      ).catch(() => ''),
+    ]).then(([files, rawBody]) => {
+      if (hash !== activeHashRef.current) return;
+      // %B 포맷은 subject 포함 전체 메시지를 반환하므로 첫 줄(= message와 동일) 제거
+      const body = (rawBody || '').trim().split('\n').slice(1).join('\n').trim();
+      setLoaded({ files: files || [], body });
+    });
+  }, [selectedCommit?.hash, currentPath]);
 
   const handleFileDblClick = (filePath: string) => {
     if (!currentPath || !selectedCommit) return;
@@ -91,9 +115,9 @@ const CommitDetail: React.FC = () => {
             {selectedCommit.message}
           </h3>
 
-          {selectedCommit.body && (
+          {loaded?.body && (
             <div className="text-[#c9d1d9] text-[13px] mb-6 whitespace-pre-wrap leading-relaxed selection:bg-[#1f6feb]/30">
-              {selectedCommit.body}
+              {loaded.body}
             </div>
           )}
 
@@ -148,15 +172,17 @@ const CommitDetail: React.FC = () => {
         <div className="flex-1 overflow-y-auto p-4 scrollbar-thin scrollbar-thumb-[#454545]">
           <h4 className="text-[10px] font-bold uppercase tracking-wider text-[#666666] mb-3 flex items-center gap-2">
             Changed Files
-            <span className="px-1.5 py-0.5 bg-[#333333] rounded text-[#8b949e]">{files.length}</span>
+            {loaded && <span className="px-1.5 py-0.5 bg-[#333333] rounded text-[#8b949e]">{loaded.files.length}</span>}
           </h4>
-          {files.length === 0 ? (
+          {!loaded ? (
+            <p className="text-[11px] text-[#484f58] italic">Loading...</p>
+          ) : loaded.files.length === 0 ? (
             <p className="text-[11px] text-[#484f58] italic">
               {isMerge ? '첫 번째 부모 대비 변경 없음 (충돌 해결 없는 클린 머지)' : '변경된 파일 없음'}
             </p>
           ) : (
             <ul className="space-y-0.5">
-              {files.map((file) => (
+              {loaded.files.map((file) => (
                 <li
                   key={file.path}
                   className={`flex items-center gap-2 text-[12px] p-2 rounded-md cursor-pointer transition-all ${

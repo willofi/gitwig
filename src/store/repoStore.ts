@@ -303,25 +303,8 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     }, 150);
   },
   
-  setSelectedCommit: async (commit) => {
+  setSelectedCommit: (commit) => {
     set({ selectedCommit: commit });
-    const { currentPath, addGitLog, updateGitLog } = get();
-    if (commit && currentPath && !commit.body) {
-      const logId = addGitLog({ command: `git show ${commit.hash.substring(0, 7)}`, status: 'pending' });
-      const startTime = Date.now();
-      try {
-        const fullBody = await window.electronAPI.git.getShow(currentPath, commit.hash);
-        const body = (fullBody || '').trim();
-        set(state => ({
-          selectedCommit: state.selectedCommit?.hash === commit.hash 
-            ? { ...state.selectedCommit, body } 
-            : state.selectedCommit,
-        }));
-        updateGitLog(logId, { status: 'success', duration: Date.now() - startTime });
-      } catch (e: any) {
-        updateGitLog(logId, { status: 'error', error: e.message, duration: Date.now() - startTime });
-      }
-    }
   },
 
   loadMore: async () => {
