@@ -35,7 +35,7 @@ interface RefBadgeProps {
   viewingBranch: string | null;
 }
 
-const RefBadge: React.FC<RefBadgeProps> = ({ refs, viewingBranch }) => {
+const RefBadge: React.FC<RefBadgeProps> = React.memo(({ refs, viewingBranch }) => {
   const allRefs = refs.split(',').map(r => r.trim());
   const [isHovered, setIsHovered] = React.useState(false);
 
@@ -99,7 +99,7 @@ const RefBadge: React.FC<RefBadgeProps> = ({ refs, viewingBranch }) => {
       )}
     </div>
   );
-};
+});
 
 interface CommitRowProps {
   commit: Commit;
@@ -224,7 +224,6 @@ const CommitGraph: React.FC = () => {
   const [scrollTop, setScrollTop] = React.useState(0);
   const [containerHeight, setContainerHeight] = React.useState(0);
   const scrollRef = React.useRef<HTMLDivElement>(null);
-  const rafRef = React.useRef<number | null>(null);
 
   React.useEffect(() => {
     const updateHeight = () => {
@@ -236,19 +235,16 @@ const CommitGraph: React.FC = () => {
     return () => ro.disconnect();
   }, []);
 
+  // RAF 없이 즉시 업데이트 — RAF 지연이 오히려 빈 화면 유발
   const handleScroll = React.useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    const newScrollTop = e.currentTarget.scrollTop;
-    if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
-    rafRef.current = requestAnimationFrame(() => {
-      setScrollTop(newScrollTop);
-      rafRef.current = null;
-    });
+    setScrollTop(e.currentTarget.scrollTop);
   }, []);
 
-  // Calculate visible range
-  const visibleCount = containerHeight > 0 ? Math.ceil(containerHeight / ROW_HEIGHT) : 20;
-  const startIndex = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - 5);
-  const endIndex = Math.min(filteredCommits.length, startIndex + visibleCount + 10);
+  // 오버스캔 20/30으로 증가 → 빠른 스크롤 시 빈 화면 방지
+  const OVERSCAN = 20;
+  const visibleCount = containerHeight > 0 ? Math.ceil(containerHeight / ROW_HEIGHT) : 30;
+  const startIndex = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN);
+  const endIndex = Math.min(filteredCommits.length, startIndex + visibleCount + OVERSCAN * 2);
   const visibleCommits = React.useMemo(
     () => filteredCommits.slice(startIndex, endIndex),
     [filteredCommits, startIndex, endIndex]
@@ -301,8 +297,9 @@ const CommitGraph: React.FC = () => {
   }, [resizing]);
 
   const maxLanes = React.useMemo(() => {
-    if (filteredCommits.length === 0) return 0;
-    return Math.max(...filteredCommits.map(c => c.lane || 0), 0) + 1;
+    let max = 0;
+    for (const c of filteredCommits) if ((c.lane ?? 0) > max) max = c.lane ?? 0;
+    return max + 1;
   }, [filteredCommits]);
 
   const graphWidth = Math.max(MAX_VISIBLE_LANES, maxLanes) * LANE_WIDTH + OFFSET_X;
@@ -609,9 +606,9 @@ const CommitGraph: React.FC = () => {
           className="relative"
           style={{ height: `${totalHeight}px`, minWidth: `${graphWidth + authorWidth + dateWidth + 280}px` }}
         >
-          <div 
+          <div
             className="absolute top-0 left-0 w-full"
-            style={{ transform: `translateY(${offsetY}px)` }}
+            style={{ transform: `translateY(${offsetY}px)`, willChange: 'transform' }}
           >
             {visibleCommits.map((commit) => (
               <CommitRow

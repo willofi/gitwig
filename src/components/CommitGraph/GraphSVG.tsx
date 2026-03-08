@@ -19,7 +19,7 @@ const COLORS = [
 
 function lx(idx: number) { return idx * LANE_WIDTH + OFFSET_X; }
 
-const GraphSVG: React.FC<GraphSVGProps> = ({ commit }) => {
+const GraphSVG: React.FC<GraphSVGProps> = React.memo(({ commit }) => {
   const { isDark } = useTheme();
   const nodeBg = isDark ? '#0d1117' : '#ffffff';
   if (!commit || commit.lane === undefined || !commit.lanesIn || !commit.lanesOut) return null;
@@ -111,6 +111,6 @@ const GraphSVG: React.FC<GraphSVGProps> = ({ commit }) => {
       {isMerge && <circle cx={nodeX} cy={midY} r={NODE_RADIUS - 1.5} fill={nodeBg} />}
     </svg>
   );
-};
+});
 
 export default GraphSVG;

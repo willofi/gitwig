@@ -252,40 +252,39 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     
     (window as any)._filterTimeout = setTimeout(() => {
       try {
-        let filtered = [...commits];
+        const hasFilter = !!(filter || userFilter || dateFilter.type !== 'all');
 
-        if (filter) {
-          const f = filter.toLowerCase();
-          filtered = filtered.filter(c => 
+        // 필터 없으면 복사 없이 바로 반환
+        if (!hasFilter) {
+          set({ filteredCommits: commits });
+          return;
+        }
+
+        // 필터 조건을 한 번의 filter()로 합쳐 배열 순회 횟수 최소화
+        const f = filter ? filter.toLowerCase() : null;
+        const now = Date.now();
+        let startLimit = 0;
+        let endLimit = Infinity;
+        if (dateFilter.type === '24h') startLimit = now - 86400000;
+        else if (dateFilter.type === '7d') startLimit = now - 604800000;
+        else if (dateFilter.type === 'custom') {
+          startLimit = dateFilter.start || 0;
+          endLimit = dateFilter.end || Infinity;
+        }
+
+        const filtered = commits.filter(c => {
+          if (f && !(
             c.message.toLowerCase().includes(f) ||
             c.author_name.toLowerCase().includes(f) ||
-            c.hash.toLowerCase().includes(f) ||
+            c.hash.toLowerCase().startsWith(f) ||
             (c.refs || '').toLowerCase().includes(f)
-          );
-        }
+          )) return false;
+          if (userFilter && c.author_name !== userFilter && c.author_email !== userFilter) return false;
+          if (dateFilter.type !== 'all' && (c.date < startLimit || c.date > endLimit)) return false;
+          return true;
+        });
 
-        if (userFilter) {
-          filtered = filtered.filter(c => c.author_name === userFilter || c.author_email === userFilter);
-        }
-
-        if (dateFilter.type !== 'all') {
-          const now = Date.now();
-          let startLimit = 0;
-          let endLimit = Infinity;
-
-          if (dateFilter.type === '24h') startLimit = now - (24 * 60 * 60 * 1000);
-          else if (dateFilter.type === '7d') startLimit = now - (7 * 24 * 60 * 60 * 1000);
-          else if (dateFilter.type === 'custom') {
-            startLimit = dateFilter.start || 0;
-            endLimit = dateFilter.end || Infinity;
-          }
-
-          filtered = filtered.filter(c => c.date >= startLimit && c.date <= endLimit);
-        }
-        
-        const finalFiltered = (filter || userFilter || dateFilter.type !== 'all') 
-          ? processCommitsForGraph(filtered) 
-          : filtered;
+        const finalFiltered = processCommitsForGraph(filtered);
           
         set({ filteredCommits: finalFiltered });
       } catch (e) {
