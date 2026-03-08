@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useRepoStore } from '@/store/repoStore';
+import { useTheme } from '@/contexts/ThemeContext';
 import { GitBranch, ChevronDown, ChevronRight, Check, Search, MoreVertical, Plus, Edit2, Trash2, GitMerge, RefreshCw, ArrowUpCircle, Folder, FolderOpen, Star, ArrowUp, ArrowDown } from 'lucide-react';
 import PromptModal from '../Common/PromptModal';
 
@@ -11,7 +12,15 @@ interface BranchNode {
 }
 
 const BranchPanel: React.FC = () => {
+  const { isDark } = useTheme();
   const { branches, branchDetails, currentBranch, currentPath, refresh, setViewingBranch, viewingBranch, highlightedBranch, setHighlightedBranch, addGitLog, updateGitLog } = useRepoStore();
+
+  const hoverBg      = isDark ? '#2d2d30' : '#eef0f3';
+  const activeBg     = isDark ? '#2d2d30' : '#eef0f3';
+  const activeText   = isDark ? '#58a6ff' : '#0969da';
+  const currentText  = isDark ? '#4facfe' : '#0969da';
+  const defaultText  = isDark ? '#cccccc' : '#57606a';
+  const containerBg  = isDark ? '#252526' : '#f6f8fa';
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['local', 'remote']));
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, branch: string } | null>(null);
@@ -22,6 +31,24 @@ const BranchPanel: React.FC = () => {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, []);
+
+  useEffect(() => {
+    if (!currentBranch) return;
+    const isRemote = currentBranch.startsWith('remotes/');
+    const root = isRemote ? 'remote' : 'local';
+    const parts = isRemote
+      ? currentBranch.replace('remotes/', '').split('/')
+      : currentBranch.split('/');
+    if (parts.length <= 1) return; // 폴더 없음, 확장 불필요
+    setExpandedFolders(prev => {
+      const next = new Set(prev);
+      // 마지막 part는 브랜치 자체이므로 그 앞까지만 폴더 경로 추가
+      for (let i = 0; i < parts.length - 1; i++) {
+        next.add(`${root}/${parts.slice(0, i + 1).join('/')}`);
+      }
+      return next;
+    });
+  }, [currentBranch]);
 
   const runWithLog = async (cmd: string, action: () => Promise<any>) => {
     const logId = addGitLog({ command: cmd, status: 'pending' });
@@ -223,15 +250,17 @@ const BranchPanel: React.FC = () => {
     const isMain = node.isBranch && isRootMain(node.fullName);
     const details = node.isBranch ? branchDetails[node.fullName] : null;
 
+    const isActive = isViewing || isHighlighted;
+    const itemBg    = isActive ? activeBg : 'transparent';
+    const itemColor = isViewing ? activeText : isHighlighted ? (isDark ? '#ffffff' : '#24292f') : isCurrent ? currentText : defaultText;
+
     return (
       <div key={path} className="select-none">
         <div
-          className={`group flex items-center py-0.5 px-2 hover:bg-[#2d2d30] cursor-pointer text-[12px] rounded-md mx-1 transition-all ${
-            isViewing ? 'bg-[#1f2937] text-[#58a6ff] ring-1 ring-[#1f6feb]/30 shadow-inner' : 
-            isHighlighted ? 'bg-[#37373d] text-white' : 
-            isCurrent ? 'text-[#4facfe] font-bold' : 'text-[#cccccc]'
-          }`}
-          style={{ paddingLeft: `${depth * 12 + 8}px` }}
+          className={`group flex items-center py-0.5 px-2 cursor-pointer text-[12px] rounded-md mx-1 transition-colors ${isCurrent && !isActive ? 'font-bold' : ''}`}
+          style={{ paddingLeft: `${depth * 12 + 8}px`, background: itemBg, color: itemColor }}
+          onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = hoverBg; }}
+          onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
           onClick={(e) => {
             if (hasChildren) {
               toggleFolder(path);
@@ -260,7 +289,7 @@ const BranchPanel: React.FC = () => {
               isMain ? (
                 <Star size={13} className="fill-[#eab308] text-[#eab308]" />
               ) : (
-                <GitBranch size={13} className={isCurrent ? 'text-[#4facfe]' : isViewing ? 'text-[#58a6ff]' : 'text-[#757575]'} />
+                <GitBranch size={13} style={{ color: isCurrent || isViewing ? activeText : (isDark ? '#757575' : '#8c959f') }} />
               )
             ) : (
               <span className="text-[#dcb67a]">
@@ -321,22 +350,27 @@ const BranchPanel: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 bg-[#252526] overflow-hidden" onClick={() => setContextMenu(null)}>
-      <div className="p-3 border-b border-[#333333] space-y-2">
-        <h2 className="text-[10px] font-bold uppercase tracking-wider text-[#666666]">Branches</h2>
+    <div className="flex flex-col flex-1 min-h-0 overflow-hidden" style={{ background: containerBg }} onClick={() => setContextMenu(null)}>
+      <div className="p-3 space-y-2" style={{ borderBottom: `1px solid ${isDark ? '#333333' : '#d0d7de'}` }}>
+        <h2 className="text-[10px] font-bold uppercase tracking-wider" style={{ color: isDark ? '#666666' : '#8c959f' }}>Branches</h2>
         <div className="relative">
-          <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-[#666666]" />
+          <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2" style={{ color: isDark ? '#666666' : '#8c959f' }} />
           <input
             type="text"
             placeholder="Search branches..."
-            className="w-full bg-[#1e1e1e] text-[11px] text-[#cccccc] pl-7 pr-2 py-1 rounded border border-[#3c3c3c] focus:outline-none focus:border-[#007acc]"
+            className="w-full text-[11px] pl-7 pr-2 py-1 rounded focus:outline-none"
+            style={{
+              background: isDark ? '#1e1e1e' : '#ffffff',
+              color: isDark ? '#cccccc' : '#24292f',
+              border: `1px solid ${isDark ? '#3c3c3c' : '#d0d7de'}`,
+            }}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-auto py-2">
+      <div className="flex-1 min-h-0 overflow-auto py-2 px-1">
         {renderNode(tree.local, 0, 'local')}
         {renderNode(tree.remote, 0, 'remote')}
       </div>
