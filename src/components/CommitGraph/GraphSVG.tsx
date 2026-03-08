@@ -3,8 +3,7 @@ import { Commit } from '@/types/git.types';
 import { useTheme } from '@/contexts/ThemeContext';
 
 interface GraphSVGProps {
-  commits: Commit[];
-  currentIndex: number;
+  commit: Commit;
 }
 
 const LANE_WIDTH = 14;
@@ -20,10 +19,9 @@ const COLORS = [
 
 function lx(idx: number) { return idx * LANE_WIDTH + OFFSET_X; }
 
-const GraphSVG: React.FC<GraphSVGProps> = ({ commits, currentIndex }) => {
+const GraphSVG: React.FC<GraphSVGProps> = ({ commit }) => {
   const { isDark } = useTheme();
   const nodeBg = isDark ? '#0d1117' : '#ffffff';
-  const commit = commits[currentIndex];
   if (!commit || commit.lane === undefined || !commit.lanesIn || !commit.lanesOut) return null;
 
   const { lane, lanesIn, lanesOut, color } = commit;

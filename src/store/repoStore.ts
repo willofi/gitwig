@@ -100,8 +100,8 @@ export const useRepoStore = create<RepoState>((set, get) => ({
   viewingBranch: null,
   highlightedBranch: null,
   logFilterOptions: { firstParent: false, mergesOnly: false },
-  pageSize: 5000,
-  loadedCount: 5000,
+  pageSize: 500,
+  loadedCount: 500,
   hasMore: true,
   autoFetchInterval: 0,
   theme: (localStorage.getItem('gitwig-theme') as AppTheme) || 'dark',
@@ -320,13 +320,6 @@ export const useRepoStore = create<RepoState>((set, get) => ({
 
     set({ isLoading: true });
     try {
-      const isRepo = await window.electronAPI.git.checkIsRepo(currentPath);
-      if (!isRepo) {
-        set({ commits: [], filteredCommits: [], status: null, branches: [], branchDetails: {}, currentBranch: null, stashes: [], isLoading: false, hasMore: false });
-        updateGitLog(logId, { status: 'success', duration: Date.now() - startTime });
-        return;
-      }
-
       const branchToFetch = viewingBranch || undefined;
 
       const [logRes, statusRes, branchesRes, stashesRes] = await Promise.allSettled([
@@ -398,19 +391,25 @@ export const useRepoStore = create<RepoState>((set, get) => ({
       get().applyFilters();
 
       // 아직 로드할 커밋이 있으면 필터 없는 상태에서 자동으로 백그라운드 로딩
-      const MAX_AUTO_LOAD = 50000;
+      const MAX_AUTO_LOAD = 3000;
       if (newHasMore) {
         const s = get();
         if (!s.filter && !s.userFilter && s.dateFilter.type === 'all' && s.loadedCount < MAX_AUTO_LOAD) {
           setTimeout(() => {
             const cur = get();
             if (cur.hasMore && !cur.isLoading) cur.loadMore();
-          }, 200);
+          }, 500);
         }
       }
-    } catch (error) {
-      console.error('Critical error in refresh:', error);
-      set({ isLoading: false });
+    } catch (error: any) {
+      // git 명령 실패 시 (경로가 repo가 아닌 경우 포함)
+      const msg = error?.message || '';
+      if (msg.includes('not a git repository') || msg.includes('fatal:')) {
+        set({ commits: [], filteredCommits: [], status: null, branches: [], branchDetails: {}, currentBranch: null, stashes: [], isLoading: false, hasMore: false });
+      } else {
+        console.error('Critical error in refresh:', error);
+        set({ isLoading: false });
+      }
     }
   },
 }));

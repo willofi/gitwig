@@ -1,5 +1,6 @@
 import React, { memo } from 'react';
 import { useRepoStore } from '@/store/repoStore';
+import { useShallow } from 'zustand/react/shallow';
 import { formatDistanceToNow, format, isToday, isYesterday } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import GraphSVG from './GraphSVG';
@@ -102,8 +103,6 @@ const RefBadge: React.FC<RefBadgeProps> = ({ refs, viewingBranch }) => {
 
 interface CommitRowProps {
   commit: Commit;
-  idx: number;
-  commits: Commit[];
   graphWidth: number;
   authorWidth: number;
   dateWidth: number;
@@ -113,9 +112,9 @@ interface CommitRowProps {
   onContextMenu: (e: React.MouseEvent, commit: Commit) => void;
 }
 
-const CommitRow = memo(({ commit, idx, commits, graphWidth, authorWidth, dateWidth, isSelected, viewingBranch, onSelect, onContextMenu }: CommitRowProps) => {
+const CommitRow = memo(({ commit, graphWidth, authorWidth, dateWidth, isSelected, viewingBranch, onSelect, onContextMenu }: CommitRowProps) => {
   const isMerge = commit.parents && commit.parents.length > 1;
-  
+
   return (
     <div
       className={`flex items-center text-[12px] border-b border-[#161b22]/30 cursor-pointer transition-colors group relative ${
@@ -127,7 +126,7 @@ const CommitRow = memo(({ commit, idx, commits, graphWidth, authorWidth, dateWid
     >
       {/* 1. Graph Area */}
       <div className="h-full shrink-0 relative" style={{ width: graphWidth }}>
-         <GraphSVG commits={commits} currentIndex={idx} />
+         <GraphSVG commit={commit} />
       </div>
 
       {/* 2. Message Area (Flexible) */}
@@ -169,22 +168,20 @@ const CommitRow = memo(({ commit, idx, commits, graphWidth, authorWidth, dateWid
     </div>
   );
 }, (prev, next) => {
-  return prev.isSelected === next.isSelected && 
-         prev.commit.hash === next.commit.hash && 
-         prev.idx === next.idx &&
+  return prev.isSelected === next.isSelected &&
+         prev.commit === next.commit &&
          prev.viewingBranch === next.viewingBranch &&
          prev.authorWidth === next.authorWidth &&
-         prev.dateWidth === next.dateWidth &&
-         prev.commits.length === next.commits.length;
+         prev.dateWidth === next.dateWidth;
 });
 
 const CommitGraph: React.FC = () => {
-  const { 
+  const {
     commits,
-    filteredCommits, 
-    selectedCommit, 
-    setSelectedCommit, 
-    filter, 
+    filteredCommits,
+    selectedCommit,
+    setSelectedCommit,
+    filter,
     setFilter,
     userFilter,
     setUserFilter,
@@ -197,8 +194,27 @@ const CommitGraph: React.FC = () => {
     logFilterOptions,
     setLogFilterOptions,
     hasMore,
-    refresh
-  } = useRepoStore();
+    refresh,
+  } = useRepoStore(useShallow(s => ({
+    commits: s.commits,
+    filteredCommits: s.filteredCommits,
+    selectedCommit: s.selectedCommit,
+    setSelectedCommit: s.setSelectedCommit,
+    filter: s.filter,
+    setFilter: s.setFilter,
+    userFilter: s.userFilter,
+    setUserFilter: s.setUserFilter,
+    dateFilter: s.dateFilter,
+    setDateFilter: s.setDateFilter,
+    isLoading: s.isLoading,
+    currentBranch: s.currentBranch,
+    viewingBranch: s.viewingBranch,
+    setViewingBranch: s.setViewingBranch,
+    logFilterOptions: s.logFilterOptions,
+    setLogFilterOptions: s.setLogFilterOptions,
+    hasMore: s.hasMore,
+    refresh: s.refresh,
+  })));
 
   const [authorWidth, setAuthorWidth] = React.useState(120);
   const [dateWidth, setDateWidth] = React.useState(140);
@@ -208,25 +224,35 @@ const CommitGraph: React.FC = () => {
   const [scrollTop, setScrollTop] = React.useState(0);
   const [containerHeight, setContainerHeight] = React.useState(0);
   const scrollRef = React.useRef<HTMLDivElement>(null);
+  const rafRef = React.useRef<number | null>(null);
 
   React.useEffect(() => {
     const updateHeight = () => {
       if (scrollRef.current) setContainerHeight(scrollRef.current.clientHeight);
     };
     updateHeight();
-    window.addEventListener('resize', updateHeight);
-    return () => window.removeEventListener('resize', updateHeight);
+    const ro = new ResizeObserver(updateHeight);
+    if (scrollRef.current) ro.observe(scrollRef.current);
+    return () => ro.disconnect();
   }, []);
 
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    setScrollTop(e.currentTarget.scrollTop);
-  };
+  const handleScroll = React.useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const newScrollTop = e.currentTarget.scrollTop;
+    if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+    rafRef.current = requestAnimationFrame(() => {
+      setScrollTop(newScrollTop);
+      rafRef.current = null;
+    });
+  }, []);
 
   // Calculate visible range
   const visibleCount = containerHeight > 0 ? Math.ceil(containerHeight / ROW_HEIGHT) : 20;
   const startIndex = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - 5);
   const endIndex = Math.min(filteredCommits.length, startIndex + visibleCount + 10);
-  const visibleCommits = filteredCommits.slice(startIndex, endIndex);
+  const visibleCommits = React.useMemo(
+    () => filteredCommits.slice(startIndex, endIndex),
+    [filteredCommits, startIndex, endIndex]
+  );
   const totalHeight = filteredCommits.length * ROW_HEIGHT;
   const offsetY = startIndex * ROW_HEIGHT;
 
@@ -587,12 +613,10 @@ const CommitGraph: React.FC = () => {
             className="absolute top-0 left-0 w-full"
             style={{ transform: `translateY(${offsetY}px)` }}
           >
-            {visibleCommits.map((commit, idx) => (
-              <CommitRow 
+            {visibleCommits.map((commit) => (
+              <CommitRow
                 key={commit.hash}
                 commit={commit}
-                idx={startIndex + idx}
-                commits={filteredCommits}
                 graphWidth={graphWidth}
                 authorWidth={authorWidth}
                 dateWidth={dateWidth}

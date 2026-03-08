@@ -25,4 +25,17 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  build: {
+    target: 'esnext',
+    minify: 'esbuild',
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom'],
+          'vendor-monaco': ['@monaco-editor/react'],
+          'vendor-date': ['date-fns'],
+        },
+      },
+    },
+  },
 });
