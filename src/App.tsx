@@ -1,21 +1,33 @@
-import React, { useEffect, useState, useRef, useCallback, useContext } from 'react';
+import React, { useEffect, useState, useRef, useCallback, Suspense } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import Sidebar from '@/components/Sidebar/Sidebar';
 import MainToolbar from '@/components/Toolbar/MainToolbar';
 import CommitGraph from '@/components/CommitGraph/CommitGraph';
 import CommitDetail from '@/components/CommitDetail/CommitDetail';
 import StagingPanel from '@/components/StagingArea/StagingPanel';
-import ConflictResolutionPanel from '@/components/ConflictEditor/ConflictResolutionPanel';
+import UpdateBanner from '@/components/Common/UpdateBanner';
 import { useRepoStore } from '@/store/repoStore';
 import TitleBar from '@/components/Common/TitleBar';
-import SettingsModal from '@/components/Common/SettingsModal';
-import UpdateBanner from '@/components/Common/UpdateBanner';
-import GitLogView from '@/components/Toolbar/GitLogView';
 import { ThemeContext } from '@/contexts/ThemeContext';
 import { computeIsDark } from '@/utils/theme';
 import { PanelLeftOpen, PanelRightOpen } from 'lucide-react';
 
+const ConflictResolutionPanel = React.lazy(() => import('@/components/ConflictEditor/ConflictResolutionPanel'));
+const SettingsModal = React.lazy(() => import('@/components/Common/SettingsModal'));
+const GitLogView = React.lazy(() => import('@/components/Toolbar/GitLogView'));
+
 function App() {
-  const { refresh, currentBranch, status, currentPath, isLoading, viewMode, autoFetchInterval, theme } = useRepoStore();
+  const { currentBranch, status, currentPath, isLoading, viewMode, autoFetchInterval, theme } = useRepoStore(
+    useShallow(s => ({
+      currentBranch: s.currentBranch,
+      status: s.status,
+      currentPath: s.currentPath,
+      isLoading: s.isLoading,
+      viewMode: s.viewMode,
+      autoFetchInterval: s.autoFetchInterval,
+      theme: s.theme,
+    }))
+  );
   const [error, setError] = React.useState<string | null>(null);
   const [showSettingsModal, setShowSettingsModal] = React.useState(false);
   const [leftOpen, setLeftOpen] = useState(true);
@@ -65,18 +77,10 @@ function App() {
 
   const isDark = computeIsDark(theme);
 
+  // currentPath 변경 시 에러 초기화 (refresh는 setCurrentPath에서 이미 호출됨)
   useEffect(() => {
-    const handleRefresh = async () => {
-      if (!currentPath) return;
-      setError(null);
-      try {
-        await refresh();
-      } catch (e: any) {
-        setError(e.message || 'Refresh failed');
-      }
-    };
-    handleRefresh();
-  }, [currentPath, refresh]);
+    setError(null);
+  }, [currentPath]);
 
   // Auto-fetch logic
   useEffect(() => {
@@ -91,7 +95,7 @@ function App() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'r') {
         e.preventDefault();
-        refresh();
+        useRepoStore.getState().refresh();
       } else if ((e.metaKey || e.ctrlKey) && e.key === ',') {
         e.preventDefault();
         setShowSettingsModal(true);
@@ -99,7 +103,7 @@ function App() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [refresh]);
+  }, []);
 
   return (
     <ThemeContext.Provider value={{ isDark }}>
@@ -113,7 +117,7 @@ function App() {
         <MainToolbar setShowSettingsModal={setShowSettingsModal} />
         <div className="flex flex-1 overflow-hidden relative">
           {viewMode === 'logs' ? (
-            <GitLogView />
+            <Suspense fallback={null}><GitLogView /></Suspense>
           ) : (
             <>
               {/* ── 왼쪽 사이드바 ── */}
@@ -190,7 +194,7 @@ function App() {
             </>
           )}
         </div>
-        <ConflictResolutionPanel />
+        <Suspense fallback={null}><ConflictResolutionPanel /></Suspense>
         <div className="h-6 bg-[#007acc] text-white text-[10px] flex items-center justify-between px-2 z-50">
           <div className="flex items-center gap-4">
             <span>Branch: <span className="font-bold">{currentBranch || 'N/A'}</span></span>
@@ -202,7 +206,7 @@ function App() {
           </div>
           <div>Last refreshed: {new Date().toLocaleTimeString()}</div>
         </div>
-        {showSettingsModal && <SettingsModal onClose={() => setShowSettingsModal(false)} />}
+        {showSettingsModal && <Suspense fallback={null}><SettingsModal onClose={() => setShowSettingsModal(false)} /></Suspense>}
       </div>
     </ThemeContext.Provider>
   );

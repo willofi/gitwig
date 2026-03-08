@@ -69,6 +69,36 @@ interface RepoState {
   setSelectedCommit: (commit: Commit | null) => void;
 }
 
+const HASH_REGEX = /[0-9a-f]{40}/;
+const DELIMITER = ' @%@ ';
+
+function parseLogOutput(rawLog: string): Commit[] {
+  const lines = rawLog.split('\n');
+  const result: Commit[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line) continue;
+    const match = line.match(HASH_REGEX);
+    if (!match) continue;
+    try {
+      const hash = match[0];
+      const hashIdx = line.indexOf(hash);
+      const graphLines = line.substring(0, hashIdx);
+      const content = line.substring(hashIdx + 40);
+      const parts = content.split(DELIMITER);
+      if (parts.length > 0 && parts[0].trim() === '') parts.shift();
+      const parents = parts[0]?.trim() ? parts[0].trim().split(' ') : [];
+      const refs = (parts[1]?.trim() || '').replace(/^\(|\)$/g, '');
+      const message = parts[2]?.trim() || '';
+      const author_name = parts[3]?.trim() || '';
+      const author_email = parts[4]?.trim() || '';
+      const date = parseInt(parts[5]?.trim() || '0', 10) * 1000;
+      if (!isNaN(date)) result.push({ hash, parents, refs, message, author_name, author_email, date, graphLines });
+    } catch (_) {}
+  }
+  return result;
+}
+
 const loadRecentProjects = (): string[] => {
   try { return JSON.parse(localStorage.getItem('gitwig-recent-projects') || '[]'); }
   catch { return []; }
@@ -118,26 +148,24 @@ export const useRepoStore = create<RepoState>((set, get) => ({
   },
 
   setCurrentPath: (path) => {
-    set({ currentPath: path, viewingBranch: null, highlightedBranch: null, loadedCount: 300, hasMore: true, logFilterOptions: { firstParent: false, mergesOnly: false } });
+    set({ currentPath: path, viewingBranch: null, highlightedBranch: null, loadedCount: 500, hasMore: true, logFilterOptions: { firstParent: false, mergesOnly: false } });
     if (!path) return;
     const prev = get().recentProjects.filter(p => p !== path);
     const updated = [...prev, path].slice(-20);
     saveRecentProjects(updated);
     set({ recentProjects: updated });
 
-    // 프로젝트 최초 오픈 시 현재 체크아웃된 브랜치를 기본 뷰로 설정
+    // 현재 브랜치를 빠르게 가져온 뒤 refresh
     (async () => {
       try {
-        const isRepo = await window.electronAPI.git.checkIsRepo(path);
-        if (isRepo) {
-          const result = await window.electronAPI.git.getBranches(path);
-          if (result?.current) {
-            set({ viewingBranch: result.current, highlightedBranch: result.current });
-          }
+        const result = await window.electronAPI.git.getBranches(path);
+        if (result?.current) {
+          set({ viewingBranch: result.current, highlightedBranch: result.current });
         }
-      } finally {
-        get().refresh(true);
+      } catch (_) {
+        // non-git 경로 등은 refresh에서 처리
       }
+      get().refresh(true);
     })();
   },
 
@@ -315,80 +343,56 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     }
     (window as any)._lastRefresh = now;
 
-    const logId = addGitLog({ command: `git refresh${viewingBranch ? ` [${viewingBranch}]` : ''} (-n ${currentLoadedCount})`, status: 'pending' });
+    const logId = addGitLog({ command: `git log${viewingBranch ? ` [${viewingBranch}]` : ''} -n ${currentLoadedCount}`, status: 'pending' });
     const startTime = Date.now();
 
     set({ isLoading: true });
     try {
       const branchToFetch = viewingBranch || undefined;
 
-      const [logRes, statusRes, branchesRes, stashesRes] = await Promise.allSettled([
-        window.electronAPI.git.getLog(currentPath, { 
-          maxCount: currentLoadedCount,
-          branch: branchToFetch,
-          ...logFilterOptions
-        }),
-        window.electronAPI.git.getStatus(currentPath),
-        window.electronAPI.git.getBranches(currentPath),
-        window.electronAPI.git.getStashes(currentPath),
+      // 4개 IPC 호출을 동시에 시작
+      const logPromise = window.electronAPI.git.getLog(currentPath, {
+        maxCount: currentLoadedCount,
+        branch: branchToFetch,
+        ...logFilterOptions
+      });
+      const statusPromise = window.electronAPI.git.getStatus(currentPath);
+      const branchesPromise = window.electronAPI.git.getBranches(currentPath);
+      const stashesPromise = window.electronAPI.git.getStashes(currentPath);
+
+      // log가 완료되는 즉시 커밋을 파싱해서 화면에 반영 (branches/status 기다리지 않음)
+      let fetchedCommits: Commit[] = [];
+      let newHasMore = false;
+      try {
+        const rawLog = await logPromise;
+        if (rawLog) {
+          fetchedCommits = parseLogOutput(rawLog);
+          if (fetchedCommits.length > 0) {
+            fetchedCommits = processCommitsForGraph(fetchedCommits);
+          }
+          newHasMore = fetchedCommits.length >= currentLoadedCount;
+          // 커밋 먼저 표시 — branches/status는 이후에 업데이트
+          set({ commits: fetchedCommits, hasMore: newHasMore });
+          get().applyFilters();
+          updateGitLog(logId, { status: 'success', duration: Date.now() - startTime });
+        }
+      } catch (logErr: any) {
+        updateGitLog(logId, { status: 'error', error: logErr?.message || 'Failed to fetch git log', duration: Date.now() - startTime });
+      }
+
+      // 나머지 IPC 결과를 기다린 뒤 사이드 데이터 업데이트
+      const [statusRes, branchesRes, stashesRes] = await Promise.allSettled([
+        statusPromise, branchesPromise, stashesPromise,
       ]);
 
-      if (logRes.status === 'rejected') {
-        updateGitLog(logId, { status: 'error', error: logRes.reason?.message || 'Failed to fetch git log', duration: Date.now() - startTime });
-      } else {
-        updateGitLog(logId, { status: 'success', duration: Date.now() - startTime });
-      }
-
-      let fetchedCommits: Commit[] = [];
-      if (logRes.status === 'fulfilled' && logRes.value) {
-        const rawLog = logRes.value;
-        const lines = rawLog.split('\n');
-        const hashRegex = /[0-9a-f]{40}/;
-        const DELIMITER = ' @%@ ';
-        
-        for (let i = 0; i < lines.length; i++) {
-          try {
-            const line = lines[i];
-            if (!line) continue;
-            const match = line.match(hashRegex);
-            if (match) {
-              const hash = match[0];
-              const hashIdx = line.indexOf(hash);
-              const graphLines = line.substring(0, hashIdx);
-              const content = line.substring(hashIdx + 40);
-              const parts = content.split(DELIMITER);
-              if (parts.length > 0 && parts[0].trim() === '') parts.shift();
-              const parents = parts[0]?.trim() ? parts[0].trim().split(' ') : [];
-              // [FIX] Strip parentheses from refs
-              const refs = (parts[1]?.trim() || '').replace(/^\(|\)$/g, '');
-              const message = parts[2]?.trim() || '';
-              const author_name = parts[3]?.trim() || '';
-              const author_email = parts[4]?.trim() || '';
-              const dateStr = parts[5]?.trim() || '0';
-              const date = parseInt(dateStr, 10) * 1000;
-              if (!isNaN(date)) fetchedCommits.push({ hash, parents, refs, message, author_name, author_email, date, graphLines });
-            }
-          } catch (e) {}
-        }
-        if (fetchedCommits.length > 0) {
-          fetchedCommits = processCommitsForGraph(fetchedCommits);
-        }
-      }
-
-      const newHasMore = fetchedCommits.length >= currentLoadedCount;
-
       set({
-        commits: fetchedCommits,
         status: statusRes.status === 'fulfilled' ? statusRes.value : null,
         branches: branchesRes.status === 'fulfilled' ? branchesRes.value.all : [],
         branchDetails: branchesRes.status === 'fulfilled' ? branchesRes.value.branches : {},
         currentBranch: branchesRes.status === 'fulfilled' ? branchesRes.value.current : null,
         stashes: stashesRes.status === 'fulfilled' ? stashesRes.value.all : [],
         isLoading: false,
-        hasMore: newHasMore
       });
-
-      get().applyFilters();
 
       // 아직 로드할 커밋이 있으면 필터 없는 상태에서 자동으로 백그라운드 로딩
       const MAX_AUTO_LOAD = 3000;
@@ -402,7 +406,6 @@ export const useRepoStore = create<RepoState>((set, get) => ({
         }
       }
     } catch (error: any) {
-      // git 명령 실패 시 (경로가 repo가 아닌 경우 포함)
       const msg = error?.message || '';
       if (msg.includes('not a git repository') || msg.includes('fatal:')) {
         set({ commits: [], filteredCommits: [], status: null, branches: [], branchDetails: {}, currentBranch: null, stashes: [], isLoading: false, hasMore: false });

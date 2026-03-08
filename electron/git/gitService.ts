@@ -5,7 +5,6 @@ import fs from 'fs/promises';
 const gitMap: Map<string, SimpleGit> = new Map();
 
 function getGit(path: string): SimpleGit {
-  console.log(`Initialising git for path: ${path}`);
   if (!gitMap.has(path)) {
     const git = simpleGit({
       baseDir: path,
@@ -24,28 +23,14 @@ ipcMain.handle('git:getLog', async (_, path: string, options?: any) => {
   const mergesOnly = options?.mergesOnly;
 
   const isStrict = !!branch && branch !== 'all';
-  console.log(`[GIT LOG] Path: ${path} | Branch: ${branch || '--all'} | Strict: ${isStrict}`);
-  
   const git = getGit(path);
   try {
-    // [FIX] 구분자를 더 유니크하게 변경하여 데이터 내 포함될 가능성을 줄임
     const DELIMITER = ' @%@ ';
     const args = ['log', '--decorate=short', '--color=never', `--format=format:%H${DELIMITER}%P${DELIMITER}%d${DELIMITER}%s${DELIMITER}%an${DELIMITER}%ae${DELIMITER}%at`];
-    
-    if (maxCount) {
-      args.push(`-n`, maxCount.toString());
-    }
-
+    if (maxCount) args.push('-n', maxCount.toString());
     if (firstParent) args.push('--first-parent');
     if (mergesOnly) args.push('--merges');
-
-    if (isStrict) {
-      args.push(branch);
-    } else {
-      args.push('--all');
-    }
-
-    console.log(`[GIT LOG] Executing: git ${args.join(' ')}`);
+    args.push(isStrict ? branch : '--all');
     const result = await git.raw(args);
     return result;
   } catch (e) {
@@ -72,31 +57,26 @@ ipcMain.handle('git:getStatus', async (_, path: string) => {
 
 ipcMain.handle('git:getBranches', async (_, path: string) => {
   const git = getGit(path);
-  const branches = await git.branch();
-  
-  // [NEW] Get ahead/behind counts for all local branches
-  try {
-    const rawData = await git.raw([
-      'for-each-ref',
-      '--format=%(refname:short)@%@%(upstream:track)',
-      'refs/heads'
-    ]);
-    
+
+  // git.branch()와 for-each-ref를 병렬 실행
+  const [branches, rawData] = await Promise.all([
+    git.branch(),
+    git.raw(['for-each-ref', '--format=%(refname:short)@%@%(upstream:track)', 'refs/heads'])
+      .catch(() => ''),
+  ]);
+
+  if (rawData) {
     const lines = rawData.trim().split('\n');
-    lines.forEach(line => {
+    for (const line of lines) {
       const [name, track] = line.split('@%@');
-      if (branches.branches[name]) {
+      if (name && track && branches.branches[name]) {
+        const b = branches.branches[name] as any;
         const aheadMatch = track.match(/ahead (\d+)/);
         const behindMatch = track.match(/behind (\d+)/);
-        
-        // Use type assertion to add dynamic properties not present in simple-git types
-        const branch = branches.branches[name] as any;
-        branch.ahead = aheadMatch ? parseInt(aheadMatch[1], 10) : 0;
-        branch.behind = behindMatch ? parseInt(behindMatch[1], 10) : 0;
+        b.ahead = aheadMatch ? parseInt(aheadMatch[1], 10) : 0;
+        b.behind = behindMatch ? parseInt(behindMatch[1], 10) : 0;
       }
-    });
-  } catch (e) {
-    console.warn('Failed to fetch ahead/behind for branches:', e);
+    }
   }
 
   return JSON.parse(JSON.stringify(branches));
