@@ -10,8 +10,8 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build && electron-builder",
-    "release": "tsc && vite build && electron-builder --publish always",
+    "build": "tsc && vite build && electron-builder --config electron-builder.config.js",
+    "release": "tsc && vite build && electron-builder --config electron-builder.config.js --publish always",
     "preview": "vite preview"
   },
   "keywords": [],

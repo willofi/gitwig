@@ -4,9 +4,9 @@
  */
 module.exports = {
   appId: "com.gitwig.app",
-  productName: "GitWig",
+  productName: "Gitwig",
   directories: {
-    output: "release",
+    output: "dist",
     buildResources: "build"
   },
   files: [
