@@ -134,7 +134,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
   loadedCount: 500,
   hasMore: true,
   autoFetchInterval: 0,
-  theme: (localStorage.getItem('gitwig-theme') as AppTheme) || 'dark',
+  theme: (localStorage.getItem('gitwig-theme') as AppTheme) || 'auto',
 
   setTheme: (theme) => {
     localStorage.setItem('gitwig-theme', theme);
