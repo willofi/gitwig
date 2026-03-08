@@ -3,13 +3,13 @@ import { useRepoStore } from '@/store/repoStore';
 import { formatDistanceToNow, format, isToday, isYesterday } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import GraphSVG from './GraphSVG';
-import { Search, Loader2, X, Tag, Calendar } from 'lucide-react';
+import { Search, Loader2, X, Tag, Calendar, RotateCcw, Layers, Cherry, Copy, GitMerge } from 'lucide-react';
 import { Commit } from '@/types/git.types';
 import ResetModal from './ResetModal';
 import PromptModal from '../Common/PromptModal';
 
 const MAX_VISIBLE_LANES = 6;
-const LANE_WIDTH = 18;
+const LANE_WIDTH = 14;
 const ROW_HEIGHT = 26;
 const OFFSET_X = 16;
 
@@ -190,14 +190,14 @@ const CommitGraph: React.FC = () => {
     setUserFilter,
     dateFilter,
     setDateFilter,
-    isLoading, 
-    viewingBranch, 
+    isLoading,
+    currentBranch,
+    viewingBranch,
     setViewingBranch,
     logFilterOptions,
     setLogFilterOptions,
     hasMore,
-    loadMore,
-    refresh 
+    refresh
   } = useRepoStore();
 
   const [authorWidth, setAuthorWidth] = React.useState(120);
@@ -219,15 +219,7 @@ const CommitGraph: React.FC = () => {
   }, []);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
-    setScrollTop(scrollTop);
-
-    // Trigger load more when 80% through the current list
-    if (hasMore && !isLoading && !filter && !userFilter && dateFilter.type === 'all') {
-      if (scrollTop + clientHeight > scrollHeight - 500) {
-        loadMore();
-      }
-    }
+    setScrollTop(e.currentTarget.scrollTop);
   };
 
   // Calculate visible range
@@ -290,12 +282,30 @@ const CommitGraph: React.FC = () => {
   const graphWidth = Math.max(MAX_VISIBLE_LANES, maxLanes) * LANE_WIDTH + OFFSET_X;
 
   const [contextMenu, setContextMenu] = React.useState<{ x: number, y: number, commit: Commit } | null>(null);
+
+  React.useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setContextMenu(null); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
   const [resettingCommit, setResettingCommit] = React.useState<Commit | null>(null);
   const [squashConfig, setSquashConfig] = React.useState<Commit | null>(null);
 
   const handleContextMenu = (e: React.MouseEvent, commit: Commit) => {
     e.preventDefault();
     setContextMenu({ x: e.clientX, y: e.clientY, commit });
+  };
+
+  const handleCherryPick = async (commit: Commit) => {
+    const { currentPath, refresh } = useRepoStore.getState();
+    if (!currentPath) return;
+    try {
+      await window.electronAPI.git.cherryPick(currentPath, commit.hash);
+      await refresh(true);
+      alert(`Cherry-pick 완료!\n${commit.hash.substring(0, 7)}: ${commit.message}`);
+    } catch (e: any) {
+      alert(`Cherry-pick 실패:\n${e.message}`);
+    }
   };
 
   const handleSquashConfirm = async (commit: Commit, message: string) => {
@@ -352,36 +362,77 @@ const CommitGraph: React.FC = () => {
       )}
 
       {/* Context Menu */}
-      {contextMenu && (
-        <div 
-          className="fixed z-[1000] bg-[#161b22] border border-[#30363d] shadow-2xl rounded-md py-1 min-w-[200px] animate-in fade-in zoom-in-95 duration-100"
-          style={{ top: contextMenu.y, left: contextMenu.x }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="px-3 py-1.5 text-[10px] text-[#8b949e] border-b border-[#30363d] mb-1">
-            Commit: {contextMenu.commit.hash.substring(0, 7)}
+      {contextMenu && (() => {
+        const c = contextMenu.commit;
+        const isMerge = (c.parents?.length ?? 0) > 1;
+        const isSameBranch = !!viewingBranch && viewingBranch === currentBranch;
+        const cpDisabled = isMerge || isSameBranch;
+        const cpTitle = isMerge
+          ? '머지 커밋은 cherry-pick할 수 없습니다'
+          : isSameBranch
+          ? '현재 체크아웃된 브랜치의 커밋입니다'
+          : `"${c.message.substring(0, 40)}" 을 현재 브랜치(${currentBranch})로 가져오기`;
+
+        return (
+          <div
+            className="fixed z-[1000] bg-[#161b22] border border-[#30363d] shadow-2xl rounded-md py-1 min-w-[220px] animate-in fade-in zoom-in-95 duration-100"
+            style={{ top: contextMenu.y, left: contextMenu.x }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="px-3 py-1.5 text-[10px] text-[#8b949e] border-b border-[#30363d] mb-1 font-mono">
+              {c.hash.substring(0, 7)}
+              <span className="ml-2 font-sans text-[#484f58] truncate">{c.message.substring(0, 30)}</span>
+            </div>
+
+            {/* Cherry-pick */}
+            <button
+              className={`w-full text-left px-3 py-1.5 text-[12px] flex items-center gap-2 transition-colors ${
+                cpDisabled
+                  ? 'opacity-35 cursor-not-allowed text-[#8b949e]'
+                  : 'hover:bg-[#238636]/20 text-[#3fb950]'
+              }`}
+              disabled={cpDisabled}
+              title={cpTitle}
+              onClick={() => { if (!cpDisabled) { handleCherryPick(c); setContextMenu(null); } }}
+            >
+              <Cherry size={13} />
+              현재 브랜치로 Cherry-pick
+            </button>
+
+            <div className="border-t border-[#30363d] my-1" />
+
+            {/* Reset */}
+            <button
+              className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-[#1f6feb]/20 transition-colors flex items-center gap-2 text-[#8b949e] hover:text-[#58a6ff]"
+              onClick={() => { setResettingCommit(c); setContextMenu(null); }}
+            >
+              <RotateCcw size={13} />
+              여기로 Reset...
+            </button>
+
+            {/* Squash */}
+            <button
+              className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-[#1f6feb]/20 transition-colors flex items-center gap-2 text-[#8b949e] hover:text-[#58a6ff]"
+              onClick={() => { setSquashConfig(c); setContextMenu(null); }}
+            >
+              <Layers size={13} />
+              여기까지 Squash (압축)
+            </button>
+
+            <div className="border-t border-[#30363d] my-1" />
+
+            {/* Copy SHA */}
+            <button
+              className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-[#30363d] transition-colors flex items-center gap-2 text-[#8b949e]"
+              onClick={() => { navigator.clipboard.writeText(c.hash); setContextMenu(null); }}
+            >
+              <Copy size={13} />
+              SHA 복사
+            </button>
           </div>
-          <button 
-            className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-[#1f6feb] transition-colors flex items-center gap-2"
-            onClick={() => { setResettingCommit(contextMenu.commit); setContextMenu(null); }}
-          >
-            Reset Current branch to here...
-          </button>
-          <button 
-            className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-[#1f6feb] transition-colors flex items-center gap-2"
-            onClick={() => { setSquashConfig(contextMenu.commit); setContextMenu(null); }}
-          >
-            여기까지 Squash (압축)
-          </button>
-          <div className="border-t border-[#30363d] my-1" />
-          <button 
-            className="w-full text-left px-3 py-1.5 text-[12px] hover:bg-[#30363d] transition-colors"
-            onClick={() => { navigator.clipboard.writeText(contextMenu.commit.hash); setContextMenu(null); }}
-          >
-            SHA 복사
-          </button>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Loading Overlay */}
       {isLoading && (
@@ -519,7 +570,7 @@ const CommitGraph: React.FC = () => {
       <div 
         ref={scrollRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto overflow-x-hidden relative scrollbar-thin scrollbar-thumb-[#30363d]"
+        className="flex-1 overflow-y-auto overflow-x-auto relative scrollbar-thin scrollbar-thumb-[#30363d]"
       >
         {isLoading && filteredCommits.length === 0 && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#0d1117]/50 z-10 gap-3">
@@ -529,8 +580,8 @@ const CommitGraph: React.FC = () => {
         )}
         
         <div 
-          className="relative min-w-full"
-          style={{ height: `${totalHeight}px` }}
+          className="relative"
+          style={{ height: `${totalHeight}px`, minWidth: `${graphWidth + authorWidth + dateWidth + 280}px` }}
         >
           <div 
             className="absolute top-0 left-0 w-full"
