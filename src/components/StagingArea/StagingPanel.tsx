@@ -88,7 +88,7 @@ interface StagingPanelProps {
 }
 
 const StagingPanel: React.FC<StagingPanelProps> = ({ onCollapse }) => {
-  const { status, currentPath, refresh, addGitLog, updateGitLog } = useRepoStore();
+  const { status, currentPath, refresh, refreshStatus, addGitLog, updateGitLog } = useRepoStore();
   const [message, setMessage] = useState('');
 
   const runWithLog = async (cmd: string, action: () => Promise<any>) => {
@@ -103,10 +103,11 @@ const StagingPanel: React.FC<StagingPanelProps> = ({ onCollapse }) => {
     }
   };
 
-  const handleAdd      = async (fp: string) => { if (!currentPath) return; await runWithLog(`git add ${fp}`, () => window.electronAPI.git.add(currentPath, fp)); await refresh(); };
-  const handleReset    = async (fp: string) => { if (!currentPath) return; await runWithLog(`git reset HEAD ${fp}`, () => window.electronAPI.git.reset(currentPath, fp)); await refresh(); };
-  const handleAddAll   = async () => { if (!currentPath) return; await runWithLog('git add -A', () => window.electronAPI.git.addAll(currentPath)); await refresh(); };
-  const handleResetAll = async () => { if (!currentPath) return; await runWithLog('git reset HEAD', () => window.electronAPI.git.resetAll(currentPath)); await refresh(); };
+  // add/reset는 status만 갱신하면 충분 (branches·stashes 불변)
+  const handleAdd      = async (fp: string) => { if (!currentPath) return; await runWithLog(`git add ${fp}`, () => window.electronAPI.git.add(currentPath, fp)); await refreshStatus(); };
+  const handleReset    = async (fp: string) => { if (!currentPath) return; await runWithLog(`git reset HEAD ${fp}`, () => window.electronAPI.git.reset(currentPath, fp)); await refreshStatus(); };
+  const handleAddAll   = async () => { if (!currentPath) return; await runWithLog('git add -A', () => window.electronAPI.git.addAll(currentPath)); await refreshStatus(); };
+  const handleResetAll = async () => { if (!currentPath) return; await runWithLog('git reset HEAD', () => window.electronAPI.git.resetAll(currentPath)); await refreshStatus(); };
 
   const handleCommit = async () => {
     if (!currentPath || !message) return;

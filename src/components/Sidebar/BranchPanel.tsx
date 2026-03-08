@@ -55,15 +55,8 @@ const BranchPanel: React.FC = () => {
       return (lower === 'main' || lower === 'master') && !name.includes('/');
     };
 
-    const sortedBranches = [...branchList].sort((a, b) => {
-      const aMain = isRootMainBranch(a);
-      const bMain = isRootMainBranch(b);
-      if (aMain && !bMain) return -1;
-      if (!aMain && bMain) return 1;
-      return a.localeCompare(b);
-    });
-
-    sortedBranches.forEach(branch => {
+    // renderNode에서 자식 노드를 정렬하므로 여기서 pre-sort 불필요
+    branchList.forEach(branch => {
       const isRemote = branch.startsWith('remotes/');
       const parts = isRemote ? branch.replace('remotes/', '').split('/') : branch.split('/');
       let current = root[isRemote ? 'remote' : 'local'];

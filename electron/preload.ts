@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     isPackaged: () => ipcRenderer.invoke('app:isPackaged'),
   },
   git: {
+    getCurrentBranch: (path: string) => ipcRenderer.invoke('git:getCurrentBranch', path),
     getLog: (path: string, options?: any) => ipcRenderer.invoke('git:getLog', path, options),
     getShow: (path: string, hash: string) => ipcRenderer.invoke('git:getShow', path, hash),
     getStatus: (path: string) => ipcRenderer.invoke('git:getStatus', path),

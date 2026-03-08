@@ -49,10 +49,21 @@ ipcMain.handle('git:getShow', async (_, path: string, hash: string) => {
   }
 });
 
+ipcMain.handle('git:getCurrentBranch', async (_, path: string) => {
+  const git = getGit(path);
+  try {
+    const result = await git.raw(['rev-parse', '--abbrev-ref', 'HEAD']);
+    const branch = result.trim();
+    return branch === 'HEAD' ? null : branch; // detached HEAD는 null 반환
+  } catch {
+    return null;
+  }
+});
+
 ipcMain.handle('git:getStatus', async (_, path: string) => {
   const git = getGit(path);
   const status = await git.status();
-  return JSON.parse(JSON.stringify(status));
+  return status;
 });
 
 ipcMain.handle('git:getBranches', async (_, path: string) => {
@@ -79,7 +90,7 @@ ipcMain.handle('git:getBranches', async (_, path: string) => {
     }
   }
 
-  return JSON.parse(JSON.stringify(branches));
+  return branches;
 });
 
 ipcMain.handle('git:checkout', async (_, path: string, branch: string, options?: any) => {
@@ -142,10 +153,15 @@ ipcMain.handle('git:checkIsRepo', async (_, path: string) => {
   }
 });
 
+ipcMain.handle('git:applyStash', async (_, path: string, index: number) => {
+  const git = getGit(path);
+  return await git.stash(['apply', `stash@{${index}}`]);
+});
+
 ipcMain.handle('git:getStashes', async (_, path: string) => {
   const git = getGit(path);
   const stashes = await git.stashList();
-  return JSON.parse(JSON.stringify(stashes));
+  return stashes;
 });
 
 ipcMain.handle('git:readFile', async (_, path: string) => {

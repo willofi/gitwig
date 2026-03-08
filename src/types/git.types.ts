@@ -65,6 +65,7 @@ export interface GitLogOptions {
 }
 
 export interface GitAPI {
+  getCurrentBranch: (path: string) => Promise<string | null>;
   getLog: (path: string, options?: GitLogOptions) => Promise<string>;
   getShow: (path: string, hash: string) => Promise<string>;
   getStatus: (path: string) => Promise<GitStatus>;
