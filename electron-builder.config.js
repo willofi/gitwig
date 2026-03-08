@@ -10,8 +10,9 @@ module.exports = {
     buildResources: "build"
   },
   files: [
-    "dist",
-    "dist-electron"
+    "dist/index.html",
+    "dist/assets/**/*",
+    "dist-electron/**/*"
   ],
   // GitHub Releases 자동 업데이트 설정
   publish: {
