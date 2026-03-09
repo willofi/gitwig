@@ -42,7 +42,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     selectDirectory: () => ipcRenderer.invoke('dialog:selectDirectory'),
   },
   window: {
-    openSplitDiff: (params: { repoPath: string; hash: string; parentHash: string; filePath: string }) =>
+    openSplitDiff: (params: { repoPath: string; hash: string; parentHash: string; filePath: string; theme?: 'dark' | 'light' | 'auto' }) =>
       ipcRenderer.invoke('window:openSplitDiff', params),
   },
   updater: {

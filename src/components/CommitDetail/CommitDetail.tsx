@@ -5,14 +5,16 @@ import { FileText, Calendar, User, Hash, GitMerge } from 'lucide-react';
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import DiffViewer from './DiffViewer';
+import type { AppTheme } from '@/utils/theme';
 
 const CommitDetail: React.FC = () => {
-  const { selectedCommit, currentPath, addGitLog, updateGitLog } = useRepoStore(
+  const { selectedCommit, currentPath, addGitLog, updateGitLog, theme } = useRepoStore(
     useShallow(s => ({
       selectedCommit: s.selectedCommit,
       currentPath: s.currentPath,
       addGitLog: s.addGitLog,
       updateGitLog: s.updateGitLog,
+      theme: s.theme,
     }))
   );
   const [loaded, setLoaded] = useState<{ files: { status: string, path: string }[], body: string } | null>(null);
@@ -67,6 +69,7 @@ const CommitDetail: React.FC = () => {
       hash: selectedCommit.hash,
       parentHash: `${selectedCommit.hash}^1`,
       filePath,
+      theme: theme as AppTheme,
     });
   };
 

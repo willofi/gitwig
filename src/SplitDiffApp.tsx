@@ -8,16 +8,21 @@ interface Props {
   hash: string;
   parentHash: string;
   filePath: string;
+  theme: AppTheme;
 }
 
-const SplitDiffApp: React.FC<Props> = ({ repoPath, hash, parentHash, filePath }) => {
+const SplitDiffApp: React.FC<Props> = ({ repoPath, hash, parentHash, filePath, theme }) => {
   const [diff, setDiff] = useState('');
   const [loading, setLoading] = useState(true);
   const platform = window.electronAPI.platform;
 
-  // 메인 창에서 localStorage에 저장된 테마를 읽어서 적용
-  const getTheme = () => (localStorage.getItem('gitwig-theme') as AppTheme) || 'dark';
+  // 메인 창에서 전달한 테마를 우선 적용하고, 없으면 저장값을 사용
+  const getTheme = () => theme || (localStorage.getItem('gitwig-theme') as AppTheme) || 'auto';
   const [isDark, setIsDark] = useState(() => computeIsDark(getTheme()));
+
+  useEffect(() => {
+    setIsDark(computeIsDark(theme));
+  }, [theme]);
 
   // 시스템 미디어 쿼리 변경 감지 (auto 모드)
   useEffect(() => {
@@ -31,12 +36,13 @@ const SplitDiffApp: React.FC<Props> = ({ repoPath, hash, parentHash, filePath })
 
   // 메인 창에서 테마를 바꾸면 storage 이벤트 수신 (다른 창에서 변경 시 발생)
   useEffect(() => {
+    if (theme !== 'auto') return;
     const handler = (e: StorageEvent) => {
-      if (e.key === 'gitwig-theme') setIsDark(computeIsDark((e.newValue as AppTheme) || 'dark'));
+      if (e.key === 'gitwig-theme') setIsDark(computeIsDark((e.newValue as AppTheme) || 'auto'));
     };
     window.addEventListener('storage', handler);
     return () => window.removeEventListener('storage', handler);
-  }, []);
+  }, [theme]);
 
   useEffect(() => {
     document.title = filePath ? `Split Diff — ${filePath}` : 'Split Diff';

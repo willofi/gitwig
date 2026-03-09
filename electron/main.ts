@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, nativeTheme } from 'electron';
 import path from 'path';
 import { autoUpdater } from 'electron-updater';
 
@@ -7,6 +7,13 @@ process.env.DIST = path.join(__dirname, '../dist');
 process.env.PUBLIC = app.isPackaged ? process.env.DIST : path.join(process.env.DIST, '../public');
 
 let win: BrowserWindow | null;
+type AppTheme = 'dark' | 'light' | 'auto';
+
+function resolveIsDark(theme: AppTheme) {
+  if (theme === 'dark') return true;
+  if (theme === 'light') return false;
+  return nativeTheme.shouldUseDarkColors;
+}
 
 // ─── Auto Updater ────────────────────────────────────────────────────────────
 
@@ -140,8 +147,9 @@ app.on('activate', () => {
 // ─── Split Diff Window ───────────────────────────────────────────────────────
 
 ipcMain.handle('window:openSplitDiff', async (_, params: {
-  repoPath: string; hash: string; parentHash: string; filePath: string;
+  repoPath: string; hash: string; parentHash: string; filePath: string; theme?: AppTheme;
 }) => {
+  const isDark = resolveIsDark(params.theme ?? 'auto');
   const splitWin = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -151,12 +159,12 @@ ipcMain.handle('window:openSplitDiff', async (_, params: {
       nodeIntegration: false,
       offscreen: false,
     },
-    backgroundColor: '#0d1117',
+    backgroundColor: isDark ? '#0d1117' : '#ffffff',
     title: `Split Diff — ${params.filePath}`,
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'hidden',
     titleBarOverlay: process.platform !== 'darwin' ? {
-      color: '#161b22',
-      symbolColor: '#8b949e',
+      color: isDark ? '#161b22' : '#f6f8fa',
+      symbolColor: isDark ? '#8b949e' : '#57606a',
       height: 32,
     } : false,
   });
@@ -167,6 +175,7 @@ ipcMain.handle('window:openSplitDiff', async (_, params: {
     hash: params.hash,
     parent: params.parentHash,
     file: params.filePath,
+    theme: params.theme ?? 'auto',
   }).toString();
 
   if (process.env.VITE_DEV_SERVER_URL) {
@@ -179,6 +188,7 @@ ipcMain.handle('window:openSplitDiff', async (_, params: {
         hash: params.hash,
         parent: params.parentHash,
         file: params.filePath,
+        theme: params.theme ?? 'auto',
       },
     });
   }

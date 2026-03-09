@@ -98,7 +98,7 @@ export interface GitAPI {
 }
 
 export interface WindowAPI {
-  openSplitDiff: (params: { repoPath: string; hash: string; parentHash: string; filePath: string }) => Promise<void>;
+  openSplitDiff: (params: { repoPath: string; hash: string; parentHash: string; filePath: string; theme?: 'dark' | 'light' | 'auto' }) => Promise<void>;
 }
 
 export interface UpdateInfo {
