@@ -1,74 +1,137 @@
-# GitWig (깃위그) 🧶
+# GitWig
 
-**GitWig**은 개발자를 위한 가볍고 직관적인 모던 Git GUI 클라이언트입니다. Electron과 React를 기반으로 구축되었으며, 복잡한 Git 명령어를 시각화하여 더 쉽고 안전한 버전 관리를 도와줍니다.
+<p align="center">
+  <img src="./build/icon.png" alt="GitWig icon" width="160" height="160" />
+</p>
 
-![License](https://img.shields.io/badge/license-ISC-blue.svg)
-![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)
-![Electron](https://img.shields.io/badge/Electron-40-47848F?logo=electron)
-![TailwindCSS](https://img.shields.io/badge/TailwindCSS-4-06B6D4?logo=tailwindcss)
+<p align="center">
+  살아있는 나뭇가지처럼 뻗어가는 커밋 그래프를 중심에 둔 Electron 기반 Git GUI 클라이언트
+</p>
 
----
+<p align="center">
+  <img alt="license" src="https://img.shields.io/badge/license-ISC-blue.svg" />
+  <img alt="react" src="https://img.shields.io/badge/React-19-61DAFB?logo=react" />
+  <img alt="electron" src="https://img.shields.io/badge/Electron-40-47848F?logo=electron" />
+  <img alt="typescript" src="https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript" />
+  <img alt="tailwind" src="https://img.shields.io/badge/TailwindCSS-4-06B6D4?logo=tailwindcss" />
+</p>
 
-## 주요 기능 ✨
+GitWig은 Git 히스토리를 단순한 텍스트 로그가 아니라 "작업 흐름"으로 읽게 만드는 데 초점을 둔 데스크톱 Git 클라이언트입니다.  
+브랜치 구조, 커밋 상세, staging, stash, conflict resolution, split diff, git activity log를 하나의 앱 안에서 이어서 처리할 수 있습니다.
 
-- **시각화된 커밋 그래프**: Git 히스토리를 한눈에 파악할 수 있는 유려한 인터페이스를 제공합니다.
-- **강력한 스테이징 영역**: 변경된 파일을 손쉽게 스테이징하고, 커밋 메시지를 작성할 수 있습니다.
-- **상세한 디프(Diff) 뷰어**: Monaco Editor를 사용하여 코드 변경 사항을 선명하게 확인합니다.
-- **충돌 해결 도구**: Merge/Rebase 과정에서 발생하는 충돌을 전용 에디터에서 직관적으로 해결할 수 있습니다.
-- **사이드바 관리**: 브랜치 생성, 전환, 삭제 및 스태시(Stash) 목록을 간편하게 관리합니다.
-- **자동 페치(Auto-fetch)**: 원격 저장소의 변경 사항을 주기적으로 확인하여 로컬 상태를 최신으로 유지합니다.
-- **VS Code 스타일 UI**: 익숙하고 깔끔한 다크 테마 기반의 레이아웃을 제공합니다.
+## 핵심 기능
 
-## 기술 스택 🛠️
+- 시각적 커밋 그래프
+  브랜치 흐름, merge 지점, ref badge를 한 화면에서 읽을 수 있습니다.
+- 브랜치 탐색과 조작
+  checkout, rename, delete, merge, squash merge, pull, push를 사이드바 컨텍스트 메뉴에서 처리합니다.
+- 커밋 상세 + diff
+  파일 목록, 커밋 본문, 단일 diff, 별도 split diff 창을 지원합니다.
+- staging workflow
+  staged/unstaged 파일 관리, 파일 단위 stage/unstage, 자동 커밋 메시지 생성 기능을 제공합니다.
+- stash 패널
+  stash 목록 조회와 apply를 앱 내부에서 수행할 수 있습니다.
+- conflict resolution
+  충돌 파일이 감지되면 3패널 에디터 기반 해결 UI를 띄웁니다.
+- 로그 필터
+  `1st`, `Merge` 제외, 작성자, 날짜, 텍스트 검색으로 히스토리를 줄여 볼 수 있습니다.
+- 테마와 설정
+  dark/light/auto 테마, auto-fetch 주기, 앱 업데이트 상태를 설정 모달에서 관리합니다.
+- Git activity console
+  앱이 실행한 git 명령, 소요 시간, 실패 메시지를 세션 단위로 추적합니다.
 
-- **Framework**: [React 19](https://react.dev/), [Electron 40](https://www.electronjs.org/)
-- **State Management**: [Zustand](https://github.com/pmndrs/zustand)
-- **Styling**: [TailwindCSS 4](https://tailwindcss.com/), [Styled-components](https://styled-components.com/)
-- **Git Engine**: [Simple-git](https://github.com/steveukx/simple-git)
-- **Code Editor**: [Monaco Editor (@monaco-editor/react)](https://github.com/suren-atoyan/monaco-react)
-- **Icons**: [Lucide React](https://lucide.dev/)
-- **Build Tool**: [Vite](https://vitejs.dev/)
+## 현재 UI 포인트
 
-## 시작하기 🚀
+- 새 앱 아이콘은 기존 git graph 모티프를 실제 가지와 잎이 있는 twig 형태로 재해석했습니다.
+- branch list의 upstream 상태는 `pull / push` 개수를 직관적인 아이콘과 컬러로 표시합니다.
+- staging 영역은 기본적으로 파일명만 보여주고, hover 시 상위 폴더 경로를 툴팁으로 노출합니다.
+- split diff 창은 메인 앱의 현재 테마를 그대로 따라갑니다.
+
+## 기술 스택
+
+- React 19
+- Electron 40
+- TypeScript 5
+- Zustand
+- Tailwind CSS 4
+- Styled Components
+- simple-git
+- Monaco Editor
+- Vite
+- electron-builder
+
+## 프로젝트 구조
+
+```text
+.
+├─ electron/                  # main/preload 및 git IPC
+├─ src/
+│  ├─ components/
+│  │  ├─ CommitGraph/         # 메인 그래프와 히스토리 필터
+│  │  ├─ CommitDetail/        # 커밋 상세, diff, split diff
+│  │  ├─ StagingArea/         # staged / unstaged / commit
+│  │  ├─ Sidebar/             # 프로젝트, 브랜치, stash
+│  │  ├─ ConflictEditor/      # 충돌 해결 UI
+│  │  └─ Common/              # 공통 모달, 타이틀바, 앱 아이콘
+│  ├─ store/                  # 전역 상태와 git refresh 로직
+│  └─ utils/                  # 그래프 레이아웃, 테마 계산 등
+├─ build/                     # 앱 아이콘과 패키징 자산
+└─ electron-builder.config.js
+```
+
+## 시작하기
 
 ### 요구 사항
-- [Node.js](https://nodejs.org/) (v18 이상 권장)
-- [Git](https://git-scm.com/) 설치 필수
 
-### 설치 및 실행
+- Node.js 18+
+- npm
+- Git
+- macOS / Windows / Linux 중 하나
 
-1. **저장소 클론**
-   ```bash
-   git clone https://github.com/your-username/gitwig.git
-   cd gitwig
-   ```
+### 설치
 
-2. **의존성 설치**
-   ```bash
-   npm install
-   ```
+```bash
+git clone https://github.com/willofi/gitwig.git
+cd gitwig
+npm install
+```
 
-3. **개발 모드 실행**
-   ```bash
-   npm run dev
-   ```
+### 개발 실행
 
-4. **빌드 (패키징)**
-   ```bash
-   npm run build
-   ```
+```bash
+npm run dev
+```
 
-## 기여하기 🤝
+### 빌드
 
-GitWig은 오픈소스 프로젝트입니다. 버그 제보, 기능 제안, 그리고 Pull Request는 언제나 환영합니다!
+```bash
+npm run build
+```
 
-1. 이 저장소를 Fork 합니다.
-2. 새로운 기능 브랜치를 생성합니다 (`git checkout -b feature/AmazingFeature`).
-3. 변경 사항을 커밋합니다 (`git commit -m 'Add some AmazingFeature'`).
-4. 브랜치에 Push 합니다 (`git push origin feature/AmazingFeature`).
-5. Pull Request를 생성합니다.
+현재 `build` 스크립트는 아래를 순서대로 수행합니다.
 
-## 라이선스 📄
+1. TypeScript 컴파일
+2. Vite 렌더러 빌드
+3. electron-builder 패키징
 
-이 프로젝트는 **ISC** 라이선스에 따라 라이선스가 부여됩니다. 자세한 내용은 `package.json`을 확인하세요.
+## 배포 메모
 
+- GitHub Releases publish 설정이 이미 들어 있습니다.
+- macOS에서 Gatekeeper 경고 없이 배포하려면 Apple Developer 기반 코드 서명과 공증이 별도로 필요합니다.
+- 현재 저장소에는 macOS 아이콘 PNG/iconset 자산이 포함되어 있으며, 새 twig 아이콘 기준으로 갱신되어 있습니다.
+
+## 개발 메모
+
+- 로그 조회는 IPC를 병렬화해서 커밋을 먼저 보여주고, 상태/브랜치/stash는 뒤이어 갱신합니다.
+- staging 패널의 add/reset는 전체 refresh 대신 `refreshStatus()`만 호출하도록 최적화되어 있습니다.
+- split diff 창은 별도 window로 열리며, query parameter로 현재 테마를 전달받습니다.
+
+## 로드맵 아이디어
+
+- README용 실제 앱 스크린샷 정리
+- macOS notarization 자동화
+- Windows용 `icon.ico`도 새 twig 아이콘 기준으로 동기화
+
+## 라이선스
+
+ISC
