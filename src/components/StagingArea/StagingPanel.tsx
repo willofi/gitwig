@@ -6,6 +6,13 @@ import { Plus, Minus, Check, PlusCircle, MinusCircle, Star, PanelRightClose } fr
 
 interface FileEntry { path: string; index: string; }
 
+function splitPathInfo(path: string) {
+  const parts = path.split('/');
+  const fileName = parts[parts.length - 1] || path;
+  const parentPath = parts.slice(0, -1).join('/');
+  return { fileName, parentPath };
+}
+
 function guessType(files: FileEntry[]): string {
   const paths = files.map(f => f.path);
   const statuses = files.map(f => f.index.trim());
@@ -87,6 +94,26 @@ interface StagingPanelProps {
   onCollapse: () => void;
 }
 
+const FilePathLabel: React.FC<{ path: string; className: string }> = ({ path, className }) => {
+  const { fileName, parentPath } = splitPathInfo(path);
+
+  return (
+    <div className="relative min-w-0 max-w-full group/pathlabel">
+      <span className={`block truncate ${className}`}>
+        {fileName}
+      </span>
+      {parentPath && (
+        <div
+          className="pointer-events-none absolute left-0 top-full mt-1 max-w-[280px] rounded border px-2 py-1 text-[10px] leading-snug opacity-0 shadow-lg transition-opacity duration-150 group-hover/pathlabel:opacity-100 z-50"
+          style={{ background: '#1c2128', borderColor: '#30363d', color: '#8b949e' }}
+        >
+          {parentPath}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const StagingPanel: React.FC<StagingPanelProps> = ({ onCollapse }) => {
   const { status, currentPath, refresh, refreshStatus, addGitLog, updateGitLog } = useRepoStore();
   const [message, setMessage] = useState('');
@@ -163,9 +190,10 @@ const StagingPanel: React.FC<StagingPanelProps> = ({ onCollapse }) => {
           <ul className="space-y-1">
             {unstagedFiles.map((file) => (
               <li key={file.path} className="flex items-center justify-between text-xs group py-1">
-                <span className={`truncate ${file.working_dir === '?' ? 'text-gray-500' : 'text-[#cccccc]'}`}>
-                  {file.path}
-                </span>
+                <FilePathLabel
+                  path={file.path}
+                  className={file.working_dir === '?' ? 'text-gray-500' : 'text-[#cccccc]'}
+                />
                 <button
                   onClick={() => handleAdd(file.path)}
                   className="opacity-0 group-hover:opacity-100 text-green-500 p-1 hover:bg-[#333333] rounded"
@@ -197,7 +225,7 @@ const StagingPanel: React.FC<StagingPanelProps> = ({ onCollapse }) => {
           <ul className="space-y-1">
             {stagedFiles.map((file) => (
               <li key={file} className="flex items-center justify-between text-xs group py-1">
-                <span className="truncate text-green-400">{file}</span>
+                <FilePathLabel path={file} className="text-green-400" />
                 <button
                   onClick={() => handleReset(file)}
                   className="opacity-0 group-hover:opacity-100 text-red-500 p-1 hover:bg-[#333333] rounded"
