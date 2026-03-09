@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useRepoStore } from '@/store/repoStore';
 import { useTheme } from '@/contexts/ThemeContext';
-import { GitBranch, ChevronDown, ChevronRight, Check, Search, MoreVertical, Plus, Edit2, Trash2, GitMerge, RefreshCw, ArrowUpCircle, Folder, FolderOpen, Star, ArrowUp, ArrowDown } from 'lucide-react';
+import { GitBranch, ChevronDown, ChevronRight, Check, Search, MoreVertical, Plus, Edit2, Trash2, GitMerge, RefreshCw, ArrowUpCircle, Folder, FolderOpen, Star, Upload, Download } from 'lucide-react';
 import PromptModal from '../Common/PromptModal';
 
 interface BranchNode {
@@ -22,11 +22,11 @@ const BranchPanel: React.FC = () => {
   const defaultText  = isDark ? '#cccccc' : '#57606a';
   const containerBg  = isDark ? '#252526' : '#f6f8fa';
   const aheadTone    = isDark
-    ? { text: '#79c0ff', bg: 'rgba(31,111,235,0.18)', border: 'rgba(56,139,253,0.35)' }
-    : { text: '#0550ae', bg: '#ddf4ff', border: '#80ccff' };
+    ? { text: '#79c0ff' }
+    : { text: '#0550ae' };
   const behindTone   = isDark
-    ? { text: '#ffb4a8', bg: 'rgba(248,81,73,0.18)', border: 'rgba(248,81,73,0.34)' }
-    : { text: '#b42318', bg: '#ffebe9', border: '#ffb3ad' };
+    ? { text: '#ffb4a8' }
+    : { text: '#d46a00' };
   const menuBg       = isDark ? '#161b22' : '#ffffff';
   const menuBorder   = isDark ? '#30363d' : '#d0d7de';
   const menuText     = isDark ? '#8b949e' : '#57606a';
@@ -311,25 +311,25 @@ const BranchPanel: React.FC = () => {
           
           {/* Ahead/Behind Indicators */}
           {node.isBranch && details && (
-            <div className="flex items-center gap-2 ml-2 shrink-0">
-              {details.ahead && details.ahead > 0 ? (
-                <div
-                  className="flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-extrabold leading-none"
-                  style={{ color: aheadTone.text, background: aheadTone.bg, border: `1px solid ${aheadTone.border}` }}
-                  title={`${details.ahead} commits to push`}
-                >
-                  <ArrowUp size={11} strokeWidth={3.2} />
-                  <span>{details.ahead}</span>
-                </div>
-              ) : null}
+            <div className="flex items-center gap-1 ml-1 shrink-0">
               {details.behind && details.behind > 0 ? (
                 <div
-                  className="flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-extrabold leading-none"
-                  style={{ color: behindTone.text, background: behindTone.bg, border: `1px solid ${behindTone.border}` }}
+                  className="flex items-center gap-0.5 text-[10px] font-extrabold leading-none"
+                  style={{ color: behindTone.text }}
                   title={`${details.behind} commits to pull`}
                 >
-                  <ArrowDown size={11} strokeWidth={3.2} />
+                  <Download size={11} strokeWidth={2.2} />
                   <span>{details.behind}</span>
+                </div>
+              ) : null}
+              {details.ahead && details.ahead > 0 ? (
+                <div
+                  className="flex items-center gap-0.5 text-[10px] font-extrabold leading-none"
+                  style={{ color: aheadTone.text }}
+                  title={`${details.ahead} commits to push`}
+                >
+                  <Upload size={11} strokeWidth={2.2} />
+                  <span>{details.ahead}</span>
                 </div>
               ) : null}
             </div>
