@@ -25,8 +25,7 @@ ipcMain.handle('git:getLog', async (_, path: string, options?: any) => {
   const isStrict = !!branch && branch !== 'all';
   const git = getGit(path);
   try {
-    const DELIMITER = ' @%@ ';
-    const args = ['log', '--decorate=short', '--color=never', `--format=format:%H${DELIMITER}%P${DELIMITER}%d${DELIMITER}%s${DELIMITER}%an${DELIMITER}%ae${DELIMITER}%at`];
+    const args = ['log', '--decorate=short', '--color=never', '--format=format:%H%x1f%P%x1f%d%x1f%s%x1f%an%x1f%ae%x1f%at'];
     if (maxCount) args.push('-n', maxCount.toString());
     if (firstParent) args.push('--first-parent');
     if (mergesOnly) args.push('--merges');

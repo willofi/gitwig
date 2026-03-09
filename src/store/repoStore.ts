@@ -71,7 +71,7 @@ interface RepoState {
 }
 
 const HASH_REGEX = /[0-9a-f]{40}/;
-const DELIMITER = ' @%@ ';
+const DELIMITER = '\x1f';
 
 function parseLogOutput(rawLog: string): Commit[] {
   const lines = rawLog.split('\n');
