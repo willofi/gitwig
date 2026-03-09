@@ -17,6 +17,8 @@
     </filter>
   </defs>
 
+  <!-- 전체 심볼을 80%로 축소해 macOS 아이콘 컨벤션에 맞는 여백을 확보 -->
+  <g transform="translate(512 512) scale(0.80) translate(-512 -512)">
   <!-- Background rounded square -->
   <rect width="1024" height="1024" rx="210" fill="url(#bg)"/>
 
@@ -97,4 +99,5 @@
   <circle cx="340" cy="155" r="44" fill="#58a6ff" opacity="0.2" filter="url(#glow2)"/>
   <circle cx="340" cy="155" r="26" fill="#58a6ff" filter="url(#glow1)"/>
   <circle cx="340" cy="155" r="12" fill="#e8f4ff"/>
+  </g>
 </svg>

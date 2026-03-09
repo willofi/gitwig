@@ -25,7 +25,7 @@ module.exports = {
     target: [
       { target: "dmg", arch: ["arm64", "x64"] }
     ],
-    icon: "build/icon.icns",
+    icon: "build/icon.png",
     // 코드 사이닝 없이 배포할 경우: CSC_IDENTITY_AUTO_DISCOVERY=false
     // 프로덕션에서는 Apple Developer 인증서 설정 권장
     hardenedRuntime: false
