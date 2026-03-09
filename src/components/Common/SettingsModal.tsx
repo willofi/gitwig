@@ -67,7 +67,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
     label:       '#c9d1d9',
     input:       { bg: '#0d1117', border: '#30363d', text: '#c9d1d9', focus: '#388bfd' },
     cancelBtn:   { bg: '#21262d', border: '#30363d', text: '#c9d1d9', hover: '#30363d' },
-    saveBtn:     { bg: '#238636', border: '#2ea043', text: '#fff', hover: '#2ea043' },
+    saveBtn:     { bg: '#1f6feb', border: '#388bfd', text: '#ffffff', hover: '#388bfd', shadow: '0 0 0 1px rgba(56,139,253,0.25) inset' },
     themeActive: { bg: '#1f6feb', border: '#388bfd', text: '#fff' },
     themeIdle:   { bg: '#21262d', border: '#30363d', text: '#8b949e', hoverBg: '#30363d', hoverText: '#e6edf3' },
     versionBox:  { bg: '#0d1117', border: '#30363d', text: '#8b949e' },
@@ -88,7 +88,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
     label:       '#1f2328',
     input:       { bg: '#ffffff', border: '#d0d7de', text: '#1f2328', focus: '#0969da' },
     cancelBtn:   { bg: '#f6f8fa', border: '#d0d7de', text: '#24292f', hover: '#eaeef2' },
-    saveBtn:     { bg: '#2da44e', border: '#2da44e', text: '#fff', hover: '#2c974b' },
+    saveBtn:     { bg: '#0969da', border: '#0550ae', text: '#ffffff', hover: '#0860ca', shadow: '0 0 0 1px rgba(9,105,218,0.18) inset' },
     themeActive: { bg: '#0969da', border: '#0969da', text: '#fff' },
     themeIdle:   { bg: '#f6f8fa', border: '#d0d7de', text: '#57606a', hoverBg: '#eaeef2', hoverText: '#1f2328' },
     versionBox:  { bg: '#f6f8fa', border: '#d0d7de', text: '#57606a' },
@@ -321,12 +321,16 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
           <button
             onClick={onClose}
             style={{ padding: '6px 16px', fontSize: 12, fontWeight: 600, background: c.cancelBtn.bg, border: `1px solid ${c.cancelBtn.border}`, color: c.cancelBtn.text, borderRadius: 6, cursor: 'pointer' }}
+            onMouseEnter={e => (e.currentTarget.style.background = c.cancelBtn.hover)}
+            onMouseLeave={e => (e.currentTarget.style.background = c.cancelBtn.bg)}
           >
             취소
           </button>
           <button
             onClick={handleSave}
-            style={{ padding: '6px 16px', fontSize: 12, fontWeight: 600, background: c.saveBtn.bg, border: `1px solid ${c.saveBtn.border}`, color: c.saveBtn.text, borderRadius: 6, cursor: 'pointer' }}
+            style={{ padding: '6px 16px', fontSize: 12, fontWeight: 600, background: c.saveBtn.bg, border: `1px solid ${c.saveBtn.border}`, color: c.saveBtn.text, borderRadius: 6, cursor: 'pointer', boxShadow: c.saveBtn.shadow }}
+            onMouseEnter={e => (e.currentTarget.style.background = c.saveBtn.hover)}
+            onMouseLeave={e => (e.currentTarget.style.background = c.saveBtn.bg)}
           >
             저장
           </button>

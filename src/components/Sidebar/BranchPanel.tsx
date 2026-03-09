@@ -21,6 +21,10 @@ const BranchPanel: React.FC = () => {
   const currentText  = isDark ? '#4facfe' : '#0969da';
   const defaultText  = isDark ? '#cccccc' : '#57606a';
   const containerBg  = isDark ? '#252526' : '#f6f8fa';
+  const menuBg       = isDark ? '#161b22' : '#ffffff';
+  const menuBorder   = isDark ? '#30363d' : '#d0d7de';
+  const menuText     = isDark ? '#8b949e' : '#57606a';
+  const menuDivider  = isDark ? '#30363d' : '#e5e7eb';
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['local', 'remote']));
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, branch: string } | null>(null);
@@ -390,29 +394,47 @@ const BranchPanel: React.FC = () => {
 
       {contextMenu && (
         <div
-          className="fixed z-[100] bg-[#161b22] border border-[#30363d] shadow-2xl py-1 rounded-md min-w-[180px] text-[12px] text-[#cccccc]"
-          style={{ top: contextMenu.y, left: contextMenu.x }}
+          className="fixed z-[100] shadow-2xl py-1 rounded-md min-w-[180px] text-[12px]"
+          style={{ top: contextMenu.y, left: contextMenu.x, background: menuBg, border: `1px solid ${menuBorder}`, color: menuText }}
           onClick={e => e.stopPropagation()}
         >
-          <ContextMenuItem icon={<Check size={14} />} label="Checkout" onClick={() => handleAction('checkout', contextMenu.branch)} />
-          <ContextMenuItem icon={<Plus size={14} />} label="New Branch from this..." onClick={() => handleAction('new', contextMenu.branch)} />
-          <div className="h-[1px] bg-[#333333] my-1" />
-          <ContextMenuItem icon={<GitMerge size={14} />} label={`Merge into ${currentBranch}`} onClick={() => handleAction('merge', contextMenu.branch)} />
-          <ContextMenuItem icon={<GitMerge size={14} />} label={`Squash Merge into ${currentBranch}`} onClick={() => handleAction('squash', contextMenu.branch)} />
-          <div className="h-[1px] bg-[#333333] my-1" />
-          <ContextMenuItem icon={<RefreshCw size={14} />} label="Update (Pull)" onClick={() => handleAction('pull', contextMenu.branch)} />
-          <ContextMenuItem icon={<ArrowUpCircle size={14} />} label="Push..." onClick={() => handleAction('push', contextMenu.branch)} />
-          <div className="h-[1px] bg-[#333333] my-1" />
-          <ContextMenuItem icon={<Edit2 size={14} />} label="Rename..." onClick={() => handleAction('rename', contextMenu.branch)} />
-          <ContextMenuItem icon={<Trash2 size={14} className="text-red-500" />} label="Delete" onClick={() => handleAction('delete', contextMenu.branch)} />
+          <ContextMenuItem isDark={isDark} icon={<Check size={14} />} label="Checkout" onClick={() => handleAction('checkout', contextMenu.branch)} />
+          <ContextMenuItem isDark={isDark} icon={<Plus size={14} />} label="New Branch from this..." onClick={() => handleAction('new', contextMenu.branch)} />
+          <div className="h-[1px] my-1" style={{ background: menuDivider }} />
+          <ContextMenuItem isDark={isDark} icon={<GitMerge size={14} />} label={`Merge into ${currentBranch}`} onClick={() => handleAction('merge', contextMenu.branch)} />
+          <ContextMenuItem isDark={isDark} icon={<GitMerge size={14} />} label={`Squash Merge into ${currentBranch}`} onClick={() => handleAction('squash', contextMenu.branch)} />
+          <div className="h-[1px] my-1" style={{ background: menuDivider }} />
+          <ContextMenuItem isDark={isDark} icon={<RefreshCw size={14} />} label="Update (Pull)" onClick={() => handleAction('pull', contextMenu.branch)} />
+          <ContextMenuItem isDark={isDark} icon={<ArrowUpCircle size={14} />} label="Push..." onClick={() => handleAction('push', contextMenu.branch)} />
+          <div className="h-[1px] my-1" style={{ background: menuDivider }} />
+          <ContextMenuItem isDark={isDark} icon={<Edit2 size={14} />} label="Rename..." onClick={() => handleAction('rename', contextMenu.branch)} />
+          <ContextMenuItem isDark={isDark} danger icon={<Trash2 size={14} />} label="Delete" onClick={() => handleAction('delete', contextMenu.branch)} />
         </div>
       )}
     </div>
   );
 };
 
-const ContextMenuItem: React.FC<{ icon: React.ReactNode, label: string, onClick: () => void }> = ({ icon, label, onClick }) => (
-  <div className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-[#094771] hover:text-white cursor-pointer" onClick={onClick}>
+const ContextMenuItem: React.FC<{ icon: React.ReactNode, label: string, onClick: () => void, isDark: boolean, danger?: boolean }> = ({ icon, label, onClick, isDark, danger = false }) => (
+  <div
+    className="flex items-center gap-2.5 px-3 py-1.5 cursor-pointer transition-colors"
+    style={{
+      color: danger ? (isDark ? '#ff7b72' : '#cf222e') : (isDark ? '#8b949e' : '#57606a'),
+    }}
+    onMouseEnter={(e) => {
+      e.currentTarget.style.background = danger
+        ? (isDark ? 'rgba(248,81,73,0.18)' : 'rgba(207,34,46,0.12)')
+        : (isDark ? 'rgba(31,111,235,0.2)' : 'rgba(9,105,218,0.12)');
+      e.currentTarget.style.color = danger
+        ? (isDark ? '#ffb4a8' : '#a40e26')
+        : (isDark ? '#58a6ff' : '#0969da');
+    }}
+    onMouseLeave={(e) => {
+      e.currentTarget.style.background = 'transparent';
+      e.currentTarget.style.color = danger ? (isDark ? '#ff7b72' : '#cf222e') : (isDark ? '#8b949e' : '#57606a');
+    }}
+    onClick={onClick}
+  >
     <span className="w-4 flex items-center">{icon}</span>
     <span>{label}</span>
   </div>

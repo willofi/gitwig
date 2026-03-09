@@ -36,7 +36,7 @@ interface RefBadgeProps {
 }
 
 const RefBadge: React.FC<RefBadgeProps> = React.memo(({ refs, viewingBranch }) => {
-  const allRefs = refs.split(',').map(r => r.trim());
+  const allRefs = refs.split(',').map(r => r.trim()).filter(Boolean);
   const [isHovered, setIsHovered] = React.useState(false);
 
   if (allRefs.length === 0) return null;
@@ -45,12 +45,6 @@ const RefBadge: React.FC<RefBadgeProps> = React.memo(({ refs, viewingBranch }) =
     const isHead = r.includes('HEAD') || r.includes('->');
     const isTag = r.startsWith('tag:');
     const label = isTag ? r.replace('tag: ', '') : r;
-
-    if (viewingBranch) {
-      const cleanLabel = label.replace(/^remotes\//, '').replace(/^origin\//, '');
-      const cleanViewing = viewingBranch.replace(/^remotes\//, '').replace(/^origin\//, '');
-      if (cleanLabel !== cleanViewing && !r.includes('HEAD')) return null;
-    }
 
     return (
       <span key={r} className={`px-1 py-0.5 rounded-[2px] text-[10px] font-bold border flex items-center gap-1 whitespace-nowrap ${
@@ -66,13 +60,7 @@ const RefBadge: React.FC<RefBadgeProps> = React.memo(({ refs, viewingBranch }) =
     );
   };
 
-  const filteredRefs = allRefs.filter(r => {
-    if (!viewingBranch) return true;
-    const label = r.startsWith('tag:') ? r.replace('tag: ', '') : r;
-    const cleanLabel = label.replace(/^remotes\//, '').replace(/^origin\//, '');
-    const cleanViewing = viewingBranch.replace(/^remotes\//, '').replace(/^origin\//, '');
-    return cleanLabel === cleanViewing || r.includes('HEAD');
-  });
+  const filteredRefs = allRefs;
 
   if (filteredRefs.length === 0) return null;
 
@@ -413,13 +401,13 @@ const CommitGraph: React.FC = () => {
               className={`w-full text-left px-3 py-1.5 text-[12px] flex items-center gap-2 transition-colors ${
                 cpDisabled
                   ? 'opacity-35 cursor-not-allowed text-[#8b949e]'
-                  : 'hover:bg-[#238636]/20 text-[#3fb950]'
+                  : 'hover:bg-[#f778ba]/20 text-[#8b949e]'
               }`}
               disabled={cpDisabled}
               title={cpTitle}
               onClick={() => { if (!cpDisabled) { handleCherryPick(c); setContextMenu(null); } }}
             >
-              <Cherry size={13} />
+              <Cherry size={13} className="text-[#ff7b72]" />
               현재 브랜치로 Cherry-pick
             </button>
 
