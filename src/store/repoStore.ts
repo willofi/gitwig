@@ -20,7 +20,7 @@ interface DateFilter {
 
 interface LogFilterOptions {
   firstParent: boolean;
-  mergesOnly: boolean;
+  excludeMerges: boolean;
 }
 
 interface RepoState {
@@ -130,7 +130,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
   isExecuting: false,
   viewingBranch: null,
   highlightedBranch: null,
-  logFilterOptions: { firstParent: false, mergesOnly: false },
+  logFilterOptions: { firstParent: false, excludeMerges: false },
   pageSize: 500,
   loadedCount: 500,
   hasMore: true,
@@ -149,7 +149,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
   },
 
   setCurrentPath: (path) => {
-    set({ currentPath: path, viewingBranch: null, highlightedBranch: null, loadedCount: 500, hasMore: true, logFilterOptions: { firstParent: false, mergesOnly: false } });
+    set({ currentPath: path, viewingBranch: null, highlightedBranch: null, loadedCount: 500, hasMore: true, logFilterOptions: { firstParent: false, excludeMerges: false } });
     if (!path) return;
     const prev = get().recentProjects.filter(p => p !== path);
     const updated = [...prev, path].slice(-20);

@@ -61,7 +61,7 @@ export interface GitLogOptions {
   maxCount?: number;
   branch?: string;
   firstParent?: boolean;
-  mergesOnly?: boolean;
+  excludeMerges?: boolean;
 }
 
 export interface GitAPI {

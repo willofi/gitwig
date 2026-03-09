@@ -482,15 +482,23 @@ const CommitGraph: React.FC = () => {
           <div className="flex items-center bg-[#0d1117] rounded-md border border-[#30363d] p-0.5 ml-1">
             <button
               onClick={() => setLogFilterOptions({ firstParent: !logFilterOptions.firstParent })}
-              className={`px-1.5 py-0.5 rounded text-[9px] ${logFilterOptions.firstParent ? 'bg-[#1f6feb] text-white' : 'text-[#8b949e]'}`}
+              className={`px-1.5 py-0.5 rounded text-[9px] border transition-colors ${
+                logFilterOptions.firstParent
+                  ? 'bg-[#1f6feb]/15 border-[#1f6feb]/40 text-[#58a6ff]'
+                  : 'border-transparent text-[#8b949e]'
+              }`}
             >
               1st
             </button>
             <button
-              onClick={() => setLogFilterOptions({ mergesOnly: !logFilterOptions.mergesOnly })}
-              className={`px-1.5 py-0.5 rounded text-[9px] ${logFilterOptions.mergesOnly ? 'bg-[#1f6feb] text-white' : 'text-[#8b949e]'}`}
+              onClick={() => setLogFilterOptions({ excludeMerges: !logFilterOptions.excludeMerges })}
+              className={`px-1.5 py-0.5 rounded text-[9px] border transition-colors ${
+                logFilterOptions.excludeMerges
+                  ? 'bg-[#1f6feb]/15 border-[#1f6feb]/40 text-[#58a6ff]'
+                  : 'border-transparent text-[#8b949e]'
+              }`}
             >
-              Merge
+              <span className={logFilterOptions.excludeMerges ? 'line-through' : ''}>Merge</span>
             </button>
           </div>
         </div>
