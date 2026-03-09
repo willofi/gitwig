@@ -6,15 +6,9 @@ interface TwigIconProps {
 }
 
 /**
- * GitWig 앱 아이콘 — 작은 나뭇가지(twig)가 뻗어나가는 형태
- * 가지 끝의 노드 색상은 git 그래프의 COLORS 팔레트와 동일하게 맞춤
+ * GitWig 앱 아이콘 — git graph를 살아있는 나뭇가지처럼 재해석한 형태
  */
 const TwigIcon: React.FC<TwigIconProps> = ({ size = 32, className }) => {
-  // viewBox 기준 좌표계 (0 0 100 100)
-  // trunk: x=30, y=92 → y=8  (아래 → 위)
-  // branch1 (top, green):   (30,22) → (80,10)
-  // branch2 (mid, purple):  (30,44) → (75,32)
-  // branch3 (lower, orange):(30,62) → (65,53)
   return (
     <svg
       width={size}
@@ -24,63 +18,35 @@ const TwigIcon: React.FC<TwigIconProps> = ({ size = 32, className }) => {
       xmlns="http://www.w3.org/2000/svg"
       className={className}
     >
-      {/* ── trunk ─────────────────────────────────── */}
-      <line x1="30" y1="92" x2="30" y2="8"
-        stroke="#3d6fa8" strokeWidth="4.5" strokeLinecap="round"/>
-      <line x1="30" y1="92" x2="30" y2="8"
-        stroke="#58a6ff" strokeWidth="2.8" strokeLinecap="round" opacity="0.9"/>
+      <defs>
+        <linearGradient id="twigBark" x1="26" y1="92" x2="52" y2="12" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#60371d" />
+          <stop offset="100%" stopColor="#c58b57" />
+        </linearGradient>
+        <linearGradient id="twigLeaf" x1="0" y1="0" x2="18" y2="18" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#d9f99d" />
+          <stop offset="100%" stopColor="#22c55e" />
+        </linearGradient>
+      </defs>
 
-      {/* ── branch 1 (top-right, green) ───────────── */}
-      <line x1="30" y1="22" x2="80" y2="10"
-        stroke="#2a6b38" strokeWidth="3.8" strokeLinecap="round"/>
-      <line x1="30" y1="22" x2="80" y2="10"
-        stroke="#3fb950" strokeWidth="2.3" strokeLinecap="round" opacity="0.9"/>
+      <path d="M30 92C28 78 28 66 29 54C31 42 35 28 43 10" stroke="#5f361d" strokeWidth="5.5" strokeLinecap="round" />
+      <path d="M30 92C28 78 28 66 29 54C31 42 35 28 43 10" stroke="url(#twigBark)" strokeWidth="3.1" strokeLinecap="round" />
+      <path d="M33 66C42 66 52 62 61 54" stroke="#ba8450" strokeWidth="2.8" strokeLinecap="round" />
+      <path d="M34 47C46 44 57 39 69 31" stroke="#c89463" strokeWidth="2.9" strokeLinecap="round" />
+      <path d="M38 27C49 22 61 16 75 8" stroke="#d3a36f" strokeWidth="3" strokeLinecap="round" />
 
-      {/* ── branch 2 (mid-right, purple) ──────────── */}
-      <line x1="30" y1="44" x2="76" y2="32"
-        stroke="#5a3d8a" strokeWidth="3.5" strokeLinecap="round"/>
-      <line x1="30" y1="44" x2="76" y2="32"
-        stroke="#d2a8ff" strokeWidth="2.1" strokeLinecap="round" opacity="0.9"/>
+      <path d="M68 6C74 6 79 10 81 16C76 19 69 19 64 16C64 12 66 8 68 6Z" fill="url(#twigLeaf)" />
+      <path d="M72 18C78 18 83 22 85 28C80 31 73 30 68 27C68 23 70 20 72 18Z" fill="#34d399" />
+      <path d="M64 28C69 27 73 30 75 35C71 38 65 38 61 35C61 31 62 29 64 28Z" fill="#86efac" />
+      <path d="M57 50C62 49 66 52 68 57C64 60 59 60 55 58C55 54 56 51 57 50Z" fill="#4ade80" />
+      <path d="M51 60C55 59 59 61 61 65C57 68 52 68 49 66C49 63 50 61 51 60Z" fill="#bbf7d0" />
 
-      {/* ── branch 3 (lower-right, orange) ────────── */}
-      <line x1="30" y1="62" x2="65" y2="52"
-        stroke="#7a4a1a" strokeWidth="3.2" strokeLinecap="round"/>
-      <line x1="30" y1="62" x2="65" y2="52"
-        stroke="#ffa657" strokeWidth="1.9" strokeLinecap="round" opacity="0.9"/>
-
-      {/* ── nodes ─────────────────────────────────── */}
-
-      {/* trunk top (HEAD) — blue */}
-      <circle cx="30" cy="8"  r="5.5" fill="#58a6ff" opacity="0.25"/>
-      <circle cx="30" cy="8"  r="3.5" fill="#58a6ff"/>
-      <circle cx="30" cy="8"  r="1.4" fill="#e8f4ff"/>
-
-      {/* branch 1 junction */}
-      <circle cx="30" cy="22" r="3.2" fill="#58a6ff" opacity="0.8"/>
-
-      {/* branch 1 tip — green */}
-      <circle cx="80" cy="10" r="5"   fill="#3fb950" opacity="0.25"/>
-      <circle cx="80" cy="10" r="3.2" fill="#3fb950"/>
-      <circle cx="80" cy="10" r="1.2" fill="#f0fff4"/>
-
-      {/* branch 2 junction */}
-      <circle cx="30" cy="44" r="3"   fill="#58a6ff" opacity="0.75"/>
-
-      {/* branch 2 tip — purple */}
-      <circle cx="76" cy="32" r="4.8" fill="#d2a8ff" opacity="0.25"/>
-      <circle cx="76" cy="32" r="3"   fill="#d2a8ff"/>
-      <circle cx="76" cy="32" r="1.1" fill="#f8f0ff"/>
-
-      {/* branch 3 junction */}
-      <circle cx="30" cy="62" r="2.8" fill="#58a6ff" opacity="0.7"/>
-
-      {/* branch 3 tip — orange */}
-      <circle cx="65" cy="52" r="4.5" fill="#ffa657" opacity="0.25"/>
-      <circle cx="65" cy="52" r="2.8" fill="#ffa657"/>
-      <circle cx="65" cy="52" r="1"   fill="#fff8f0"/>
-
-      {/* trunk bottom (base) */}
-      <circle cx="30" cy="92" r="3.5" fill="#58a6ff" opacity="0.4"/>
+      <circle cx="30" cy="92" r="3.6" fill="#6fb6ff" opacity="0.5" />
+      <circle cx="33" cy="66" r="3.1" fill="#6fb6ff" opacity="0.75" />
+      <circle cx="34" cy="47" r="3.2" fill="#6fb6ff" opacity="0.82" />
+      <circle cx="43" cy="10" r="5.8" fill="#58a6ff" opacity="0.26" />
+      <circle cx="43" cy="10" r="3.7" fill="#58a6ff" />
+      <circle cx="43" cy="10" r="1.3" fill="#e8f4ff" />
     </svg>
   );
 };
