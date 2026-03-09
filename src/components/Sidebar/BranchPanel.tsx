@@ -21,6 +21,12 @@ const BranchPanel: React.FC = () => {
   const currentText  = isDark ? '#4facfe' : '#0969da';
   const defaultText  = isDark ? '#cccccc' : '#57606a';
   const containerBg  = isDark ? '#252526' : '#f6f8fa';
+  const aheadTone    = isDark
+    ? { text: '#79c0ff', bg: 'rgba(31,111,235,0.18)', border: 'rgba(56,139,253,0.35)' }
+    : { text: '#0550ae', bg: '#ddf4ff', border: '#80ccff' };
+  const behindTone   = isDark
+    ? { text: '#ffb4a8', bg: 'rgba(248,81,73,0.18)', border: 'rgba(248,81,73,0.34)' }
+    : { text: '#b42318', bg: '#ffebe9', border: '#ffb3ad' };
   const menuBg       = isDark ? '#161b22' : '#ffffff';
   const menuBorder   = isDark ? '#30363d' : '#d0d7de';
   const menuText     = isDark ? '#8b949e' : '#57606a';
@@ -307,14 +313,22 @@ const BranchPanel: React.FC = () => {
           {node.isBranch && details && (
             <div className="flex items-center gap-2 ml-2 shrink-0">
               {details.ahead && details.ahead > 0 ? (
-                <div className="flex items-center text-[#a5d8ff] text-[10px] font-bold gap-0.5" title={`${details.ahead} commits to push`}>
-                  <ArrowUp size={12} strokeWidth={3} />
+                <div
+                  className="flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-extrabold leading-none"
+                  style={{ color: aheadTone.text, background: aheadTone.bg, border: `1px solid ${aheadTone.border}` }}
+                  title={`${details.ahead} commits to push`}
+                >
+                  <ArrowUp size={11} strokeWidth={3.2} />
                   <span>{details.ahead}</span>
                 </div>
               ) : null}
               {details.behind && details.behind > 0 ? (
-                <div className="flex items-center text-[#ffc9c9] text-[10px] font-bold gap-0.5" title={`${details.behind} commits to pull`}>
-                  <ArrowDown size={12} strokeWidth={3} />
+                <div
+                  className="flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-extrabold leading-none"
+                  style={{ color: behindTone.text, background: behindTone.bg, border: `1px solid ${behindTone.border}` }}
+                  title={`${details.behind} commits to pull`}
+                >
+                  <ArrowDown size={11} strokeWidth={3.2} />
                   <span>{details.behind}</span>
                 </div>
               ) : null}
