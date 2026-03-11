@@ -1,68 +1,30 @@
 import { create } from 'zustand';
-import { Commit, GitStatus, Branch } from '@/types/git.types';
+import { Commit, GitStatus, Branch, StashEntry } from '@/types/git.types';
 import { processCommitsForGraph } from '@/utils/graphLayout';
 import type { AppTheme } from '@/utils/theme';
+import { createLogSlice, type LogSlice } from './slices/logSlice';
+import { createSessionSlice, type SessionSlice } from './slices/sessionSlice';
+import { createUiPreferenceSlice, type UiPreferenceSlice, type DateFilter, type LogFilterOptions } from './slices/uiPreferenceSlice';
 
-interface GitLogEntry {
-  id: string;
-  timestamp: number;
-  command: string;
-  status: 'pending' | 'success' | 'error';
-  duration?: number;
-  error?: string;
-}
-
-interface DateFilter {
-  type: 'all' | '24h' | '7d' | 'custom';
-  start?: number;
-  end?: number;
-}
-
-interface LogFilterOptions {
-  firstParent: boolean;
-  excludeMerges: boolean;
-}
-
-interface RepoState {
-  currentPath: string | null;
-  recentProjects: string[];
+interface RepoState extends LogSlice, SessionSlice, UiPreferenceSlice {
   commits: Commit[];
   filteredCommits: Commit[];
   status: GitStatus | null;
   branches: string[];
   branchDetails: Record<string, Branch>;
   currentBranch: string | null;
-  stashes: any[];
+  stashes: StashEntry[];
   selectedCommit: Commit | null;
-  filter: string;
-  userFilter: string | null;
-  dateFilter: DateFilter;
   isLoading: boolean;
-  viewMode: 'repo' | 'logs';
-  gitLogs: GitLogEntry[];
-  lastCommand: string | null;
-  isExecuting: boolean;
-  viewingBranch: string | null;
-  highlightedBranch: string | null;
-  logFilterOptions: LogFilterOptions;
   pageSize: number;
   loadedCount: number;
   hasMore: boolean;
-  autoFetchInterval: number; // minutes, 0 for disabled
-  theme: AppTheme;
   setCurrentPath: (path: string | null) => void;
-  removeRecentProject: (path: string) => void;
-  setTheme: (theme: AppTheme) => void;
   setFilter: (filter: string) => void;
   setUserFilter: (user: string | null) => void;
   setDateFilter: (filter: DateFilter) => void;
   setViewingBranch: (branch: string | null) => void;
-  setHighlightedBranch: (branch: string | null) => void;
-  setViewMode: (mode: 'repo' | 'logs') => void;
-  addGitLog: (entry: Omit<GitLogEntry, 'id' | 'timestamp'>) => string;
-  updateGitLog: (id: string, update: Partial<GitLogEntry>) => void;
   setLogFilterOptions: (options: Partial<LogFilterOptions>) => void;
-  setAutoFetchInterval: (interval: number) => void;
   refresh: (resetCount?: boolean) => Promise<void>;
   refreshStatus: () => Promise<void>;
   loadMore: () => Promise<void>;
@@ -72,6 +34,19 @@ interface RepoState {
 
 const HASH_REGEX = /[0-9a-f]{40}/;
 const DELIMITER = '\x1f';
+type TimeoutHandle = ReturnType<typeof setTimeout>;
+
+const storeScheduler: {
+  filterTimeout: TimeoutHandle | null;
+  pendingRefreshTimeout: TimeoutHandle | null;
+  lastRefreshAt: number;
+  refreshRequestId: number;
+} = {
+  filterTimeout: null,
+  pendingRefreshTimeout: null,
+  lastRefreshAt: 0,
+  refreshRequestId: 0,
+};
 
 function parseLogOutput(rawLog: string): Commit[] {
   const lines = rawLog.split('\n');
@@ -109,9 +84,62 @@ const saveRecentProjects = (list: string[]) => {
   localStorage.setItem('gitwig-recent-projects', JSON.stringify(list));
 };
 
+const BRANCH_FAVORITES_KEY = 'gitwig-branch-favorites';
+const DEFAULT_FAVORITE_BRANCHES = ['main', 'remotes/origin/main'];
+const THEME_KEY = 'gitwig-theme';
+
+function loadFavoriteBranchMap(): Record<string, string[]> {
+  try {
+    return JSON.parse(localStorage.getItem(BRANCH_FAVORITES_KEY) || '{}');
+  } catch {
+    return {};
+  }
+}
+
+function saveFavoriteBranchMap(map: Record<string, string[]>) {
+  localStorage.setItem(BRANCH_FAVORITES_KEY, JSON.stringify(map));
+}
+
+function loadFavoriteBranches(path: string): string[] {
+  const map = loadFavoriteBranchMap();
+  if (Array.isArray(map[path])) return map[path];
+  map[path] = DEFAULT_FAVORITE_BRANCHES;
+  saveFavoriteBranchMap(map);
+  return map[path];
+}
+
+function saveFavoriteBranches(path: string, branches: string[]) {
+  const map = loadFavoriteBranchMap();
+  map[path] = Array.from(new Set(branches));
+  saveFavoriteBranchMap(map);
+}
+
+function syncFavoriteBranches(path: string, favorites: string[], availableBranches: string[]) {
+  const available = new Set(availableBranches);
+  const next = favorites.filter(branch => available.has(branch));
+
+  saveFavoriteBranches(path, next);
+  return next;
+}
+
+function loadTheme(): AppTheme {
+  return (localStorage.getItem(THEME_KEY) as AppTheme) || 'auto';
+}
+
+function saveTheme(theme: AppTheme) {
+  localStorage.setItem(THEME_KEY, theme);
+}
+
 export const useRepoStore = create<RepoState>((set, get) => ({
-  currentPath: null,
-  recentProjects: loadRecentProjects(),
+  ...createLogSlice(set),
+  ...createSessionSlice(set, get, {
+    loadRecentProjects,
+    saveRecentProjects,
+    loadTheme,
+    saveTheme,
+    saveFavoriteBranches,
+  }),
+  ...createUiPreferenceSlice(set),
   commits: [],
   filteredCommits: [],
   status: null,
@@ -120,36 +148,26 @@ export const useRepoStore = create<RepoState>((set, get) => ({
   currentBranch: null,
   stashes: [],
   selectedCommit: null,
-  filter: '',
-  userFilter: null,
-  dateFilter: { type: 'all' },
   isLoading: false,
-  viewMode: 'repo',
-  gitLogs: [],
-  lastCommand: null,
-  isExecuting: false,
-  viewingBranch: null,
-  highlightedBranch: null,
-  logFilterOptions: { firstParent: false, excludeMerges: false },
   pageSize: 500,
   loadedCount: 500,
   hasMore: true,
-  autoFetchInterval: 0,
-  theme: (localStorage.getItem('gitwig-theme') as AppTheme) || 'auto',
-
-  setTheme: (theme) => {
-    localStorage.setItem('gitwig-theme', theme);
-    set({ theme });
-  },
-
-  removeRecentProject: (path) => {
-    const updated = get().recentProjects.filter(p => p !== path);
-    saveRecentProjects(updated);
-    set({ recentProjects: updated });
-  },
 
   setCurrentPath: (path) => {
-    set({ currentPath: path, viewingBranch: null, highlightedBranch: null, loadedCount: 500, hasMore: true, logFilterOptions: { firstParent: false, excludeMerges: false } });
+    const previousPath = get().currentPath;
+    if (previousPath && previousPath !== path) {
+      window.electronAPI.git.disposeRepo(previousPath).catch(() => {});
+    }
+
+    set({
+      currentPath: path,
+      viewingBranch: null,
+      highlightedBranch: null,
+      favoriteBranches: path ? loadFavoriteBranches(path) : [],
+      loadedCount: 500,
+      hasMore: true,
+      logFilterOptions: { firstParent: false, excludeMerges: false }
+    });
     if (!path) return;
     const prev = get().recentProjects.filter(p => p !== path);
     const updated = [...prev, path].slice(-20);
@@ -168,35 +186,11 @@ export const useRepoStore = create<RepoState>((set, get) => ({
       get().refresh(true);
     })();
   },
-
-  setViewMode: (mode) => set({ viewMode: mode }),
-
-  addGitLog: (entry) => {
-    const id = Math.random().toString(36).substring(7);
-    const newEntry: GitLogEntry = {
-      ...entry,
-      id,
-      timestamp: Date.now(),
-    };
-    set(state => ({ 
-      gitLogs: [newEntry, ...state.gitLogs].slice(0, 1000),
-      lastCommand: entry.command,
-      isExecuting: entry.status === 'pending'
-    }));
-    return id;
-  },
-
-  updateGitLog: (id, update) => {
-    set(state => ({
-      gitLogs: state.gitLogs.map(log => log.id === id ? { ...log, ...update } : log),
-      isExecuting: update.status === 'pending' ? true : (state.isExecuting && state.gitLogs.some(l => l.id !== id && l.status === 'pending') ? true : false)
-    }));
-  },
-  
   setViewingBranch: (branch) => {
-    const timeout = (window as any)._filterTimeout;
-    if (timeout) clearTimeout(timeout);
-    (window as any)._filterTimeout = null;
+    if (storeScheduler.filterTimeout) {
+      clearTimeout(storeScheduler.filterTimeout);
+      storeScheduler.filterTimeout = null;
+    }
     set({ 
       viewingBranch: branch, 
       highlightedBranch: branch, 
@@ -210,17 +204,9 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     get().refresh(true);
   },
   
-  setHighlightedBranch: (branch) => {
-    set({ highlightedBranch: branch });
-  },
-  
   setLogFilterOptions: (options) => {
     set(state => ({ logFilterOptions: { ...state.logFilterOptions, ...options }, loadedCount: 300, hasMore: true }));
     get().refresh(true);
-  },
-
-  setAutoFetchInterval: (interval: number) => {
-    set({ autoFetchInterval: interval });
   },
 
   // 스테이징 조작(add/reset) 후 status만 갱신 — 전체 refresh 대비 4배 빠름
@@ -257,10 +243,11 @@ export const useRepoStore = create<RepoState>((set, get) => ({
       return;
     }
 
-    const timeout = (window as any)._filterTimeout;
-    if (timeout) clearTimeout(timeout);
-    
-    (window as any)._filterTimeout = setTimeout(() => {
+    if (storeScheduler.filterTimeout) {
+      clearTimeout(storeScheduler.filterTimeout);
+    }
+
+    storeScheduler.filterTimeout = setTimeout(() => {
       try {
         const hasFilter = !!(filter || userFilter || dateFilter.type !== 'all');
 
@@ -326,14 +313,20 @@ export const useRepoStore = create<RepoState>((set, get) => ({
     const currentLoadedCount = resetCount ? pageSize : loadedCount;
 
     const now = Date.now();
-    const lastRefresh = (window as any)._lastRefresh || 0;
-    if (now - lastRefresh < 300) {
-      const pending = (window as any)._pendingRefresh;
-      if (pending) clearTimeout(pending);
-      (window as any)._pendingRefresh = setTimeout(() => get().refresh(resetCount), 350);
+    if (now - storeScheduler.lastRefreshAt < 300) {
+      if (storeScheduler.pendingRefreshTimeout) {
+        clearTimeout(storeScheduler.pendingRefreshTimeout);
+      }
+      storeScheduler.pendingRefreshTimeout = setTimeout(() => get().refresh(resetCount), 350);
       return;
     }
-    (window as any)._lastRefresh = now;
+    storeScheduler.lastRefreshAt = now;
+    if (storeScheduler.pendingRefreshTimeout) {
+      clearTimeout(storeScheduler.pendingRefreshTimeout);
+      storeScheduler.pendingRefreshTimeout = null;
+    }
+
+    const requestId = ++storeScheduler.refreshRequestId;
 
     const logId = addGitLog({ command: `git log${viewingBranch ? ` [${viewingBranch}]` : ''} -n ${currentLoadedCount}`, status: 'pending' });
     const startTime = Date.now();
@@ -363,6 +356,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
             fetchedCommits = processCommitsForGraph(fetchedCommits);
           }
           newHasMore = fetchedCommits.length >= currentLoadedCount;
+          if (requestId !== storeScheduler.refreshRequestId) return;
           // 커밋 먼저 표시 — branches/status는 이후에 업데이트
           set({ commits: fetchedCommits, hasMore: newHasMore });
           get().applyFilters();
@@ -376,12 +370,18 @@ export const useRepoStore = create<RepoState>((set, get) => ({
       const [statusRes, branchesRes, stashesRes] = await Promise.allSettled([
         statusPromise, branchesPromise, stashesPromise,
       ]);
+      if (requestId !== storeScheduler.refreshRequestId) return;
+
+      const nextFavoriteBranches = branchesRes.status === 'fulfilled'
+        ? syncFavoriteBranches(currentPath, get().favoriteBranches, branchesRes.value.all)
+        : get().favoriteBranches;
 
       set({
         status: statusRes.status === 'fulfilled' ? statusRes.value : null,
         branches: branchesRes.status === 'fulfilled' ? branchesRes.value.all : [],
         branchDetails: branchesRes.status === 'fulfilled' ? branchesRes.value.branches : {},
         currentBranch: branchesRes.status === 'fulfilled' ? branchesRes.value.current : null,
+        favoriteBranches: nextFavoriteBranches,
         stashes: stashesRes.status === 'fulfilled' ? stashesRes.value.all : [],
         isLoading: false,
       });
@@ -398,6 +398,7 @@ export const useRepoStore = create<RepoState>((set, get) => ({
         }
       }
     } catch (error: any) {
+      if (requestId !== storeScheduler.refreshRequestId) return;
       const msg = error?.message || '';
       if (msg.includes('not a git repository') || msg.includes('fatal:')) {
         set({ commits: [], filteredCommits: [], status: null, branches: [], branchDetails: {}, currentBranch: null, stashes: [], isLoading: false, hasMore: false });

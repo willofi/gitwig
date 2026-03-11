@@ -1,6 +1,7 @@
 import React, { useEffect, useLayoutEffect, useState, useRef } from 'react';
 import { useRepoStore } from '@/store/repoStore';
 import { useShallow } from 'zustand/react/shallow';
+import { useGitActions } from '@/hooks/useGitActions';
 import { FileText, Calendar, User, Hash, GitMerge } from 'lucide-react';
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
@@ -8,33 +9,19 @@ import DiffViewer from './DiffViewer';
 import type { AppTheme } from '@/utils/theme';
 
 const CommitDetail: React.FC = () => {
-  const { selectedCommit, currentPath, addGitLog, updateGitLog, theme } = useRepoStore(
+  const { selectedCommit, currentPath, theme } = useRepoStore(
     useShallow(s => ({
       selectedCommit: s.selectedCommit,
       currentPath: s.currentPath,
-      addGitLog: s.addGitLog,
-      updateGitLog: s.updateGitLog,
       theme: s.theme,
     }))
   );
+  const { runWithLog } = useGitActions();
   const [loaded, setLoaded] = useState<{ files: { status: string, path: string }[], body: string } | null>(null);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [diff, setDiff] = useState<string>('');
   const activeFileRef = useRef<string | null>(null);
   const activeHashRef = useRef<string | null>(null);
-
-  const runWithLog = async (cmd: string, action: () => Promise<any>) => {
-    const logId = addGitLog({ command: cmd, status: 'pending' });
-    const startTime = Date.now();
-    try {
-      const result = await action();
-      updateGitLog(logId, { status: 'success', duration: Date.now() - startTime });
-      return result;
-    } catch (e: any) {
-      updateGitLog(logId, { status: 'error', error: e.message || 'Action failed', duration: Date.now() - startTime });
-      throw e;
-    }
-  };
 
   // paint 전에 동기적으로 초기화
   useLayoutEffect(() => {

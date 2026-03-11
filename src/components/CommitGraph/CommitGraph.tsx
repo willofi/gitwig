@@ -1,6 +1,7 @@
 import React, { memo } from 'react';
 import { useRepoStore } from '@/store/repoStore';
 import { useShallow } from 'zustand/react/shallow';
+import { useGitActions } from '@/hooks/useGitActions';
 import { formatDistanceToNow, format, isToday, isYesterday } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import GraphSVG from './GraphSVG';
@@ -8,11 +9,16 @@ import { Search, Loader2, X, Tag, Calendar, RotateCcw, Layers, Cherry, Copy, Git
 import { Commit } from '@/types/git.types';
 import ResetModal from './ResetModal';
 import PromptModal from '../Common/PromptModal';
+import NotificationModal from '../Common/NotificationModal';
 
 const MAX_VISIBLE_LANES = 6;
 const LANE_WIDTH = 14;
 const ROW_HEIGHT = 26;
 const OFFSET_X = 16;
+const SHA_COLUMN_WIDTH = 64;
+const MESSAGE_MIN_WIDTH = 280;
+const AUTHOR_MIN_WIDTH = 80;
+const DATE_MIN_WIDTH = 120;
 
 const formatDate = (date: number | undefined) => {
   if (!date || isNaN(date)) return '---';
@@ -102,6 +108,7 @@ interface CommitRowProps {
 
 const CommitRow = memo(({ commit, graphWidth, authorWidth, dateWidth, isSelected, viewingBranch, onSelect, onContextMenu }: CommitRowProps) => {
   const isMerge = commit.parents && commit.parents.length > 1;
+  const dateText = formatDate(commit.date);
 
   return (
     <div
@@ -142,10 +149,11 @@ const CommitRow = memo(({ commit, graphWidth, authorWidth, dateWidth, isSelected
 
         {/* Date */}
         <div 
-          className="px-2 h-full flex items-center justify-end text-[#484f58] text-[11px] border-l border-transparent group-hover:border-[#30363d]/30" 
+          className="px-2 h-full flex items-center justify-end text-[#484f58] text-[11px] border-l border-transparent group-hover:border-[#30363d]/30 whitespace-nowrap overflow-hidden text-ellipsis" 
           style={{ width: dateWidth }}
+          title={dateText}
         >
-          {formatDate(commit.date)}
+          {dateText}
         </div>
 
         {/* SHA */}
@@ -164,6 +172,7 @@ const CommitRow = memo(({ commit, graphWidth, authorWidth, dateWidth, isSelected
 });
 
 const CommitGraph: React.FC = () => {
+  const { runWithLog } = useGitActions();
   const {
     commits,
     filteredCommits,
@@ -262,7 +271,8 @@ const CommitGraph: React.FC = () => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!resizing) return;
       const delta = resizing.startX - e.clientX;
-      const newWidth = Math.max(80, resizing.startWidth + delta);
+      const minWidth = resizing.type === 'date' ? DATE_MIN_WIDTH : AUTHOR_MIN_WIDTH;
+      const newWidth = Math.max(minWidth, resizing.startWidth + delta);
       if (resizing.type === 'author') setAuthorWidth(newWidth);
       else setDateWidth(newWidth);
     };
@@ -301,6 +311,11 @@ const CommitGraph: React.FC = () => {
   }, []);
   const [resettingCommit, setResettingCommit] = React.useState<Commit | null>(null);
   const [squashConfig, setSquashConfig] = React.useState<Commit | null>(null);
+  const [notificationConfig, setNotificationConfig] = React.useState<{
+    title: string;
+    message: string;
+    tone?: 'info' | 'success' | 'error';
+  } | null>(null);
 
   const handleContextMenu = (e: React.MouseEvent, commit: Commit) => {
     e.preventDefault();
@@ -311,11 +326,21 @@ const CommitGraph: React.FC = () => {
     const { currentPath, refresh } = useRepoStore.getState();
     if (!currentPath) return;
     try {
-      await window.electronAPI.git.cherryPick(currentPath, commit.hash);
+      await runWithLog(`git cherry-pick ${commit.hash.substring(0, 7)}`, () =>
+        window.electronAPI.git.cherryPick(currentPath, commit.hash)
+      );
       await refresh(true);
-      alert(`Cherry-pick 완료!\n${commit.hash.substring(0, 7)}: ${commit.message}`);
+      setNotificationConfig({
+        title: 'Cherry-pick 완료',
+        message: `${commit.hash.substring(0, 7)}: ${commit.message}`,
+        tone: 'success',
+      });
     } catch (e: any) {
-      alert(`Cherry-pick 실패:\n${e.message}`);
+      setNotificationConfig({
+        title: 'Cherry-pick 실패',
+        message: e.message || '알 수 없는 오류가 발생했습니다.',
+        tone: 'error',
+      });
     }
   };
 
@@ -324,11 +349,21 @@ const CommitGraph: React.FC = () => {
     if (!currentPath) return;
 
     try {
-      await window.electronAPI.git.squash(currentPath, commit.hash, commit.hash, message);
+      await runWithLog(`git squash ${commit.hash.substring(0, 7)}..${commit.hash.substring(0, 7)}`, () =>
+        window.electronAPI.git.squash(currentPath, commit.hash, commit.hash, message)
+      );
       await refresh(true);
-      alert("압축 완료!");
+      setNotificationConfig({
+        title: '압축 완료',
+        message: '커밋이 성공적으로 압축되었습니다.',
+        tone: 'success',
+      });
     } catch (e: any) {
-      alert(`압축 실패: ${e.message}`);
+      setNotificationConfig({
+        title: '압축 실패',
+        message: e.message || '알 수 없는 오류가 발생했습니다.',
+        tone: 'error',
+      });
     }
   };
 
@@ -338,11 +373,17 @@ const CommitGraph: React.FC = () => {
     if (!currentPath) return;
 
     try {
-      await window.electronAPI.git.resetMode(currentPath, resettingCommit.hash, mode);
+      await runWithLog(`git reset --${mode} ${resettingCommit.hash.substring(0, 7)}`, () =>
+        window.electronAPI.git.resetMode(currentPath, resettingCommit.hash, mode)
+      );
       setResettingCommit(null);
       await refresh(true);
     } catch (e: any) {
-      alert(`재설정 실패: ${e.message}`);
+      setNotificationConfig({
+        title: '재설정 실패',
+        message: e.message || '알 수 없는 오류가 발생했습니다.',
+        tone: 'error',
+      });
     }
   };
 
@@ -369,6 +410,15 @@ const CommitGraph: React.FC = () => {
             handleSquashConfirm(squashConfig, message);
             setSquashConfig(null);
           }}
+        />
+      )}
+
+      {notificationConfig && (
+        <NotificationModal
+          title={notificationConfig.title}
+          message={notificationConfig.message}
+          tone={notificationConfig.tone}
+          onClose={() => setNotificationConfig(null)}
         />
       )}
 
@@ -569,22 +619,6 @@ const CommitGraph: React.FC = () => {
         </div>
       </div>
 
-      {/* Column Resizers */}
-      <div className="absolute top-[41px] bottom-0 right-0 z-40 pointer-events-none w-full overflow-hidden">
-         {/* Resizer: Between Commit Message and Author Name */}
-         <div 
-           className={`absolute pointer-events-auto h-full w-[4px] cursor-col-resize transition-colors ${resizing?.type === 'author' ? 'bg-[#1f6feb] opacity-100' : 'hover:bg-[#1f6feb]/30 opacity-0 hover:opacity-100'}`}
-           style={{ right: `calc(16px + 48px + ${dateWidth}px + ${authorWidth}px - 2px)` }}
-           onMouseDown={(e) => handleMouseDown(e, 'author')}
-         />
-         {/* Resizer: Between Author Name and Date */}
-         <div 
-           className={`absolute pointer-events-auto h-full w-[4px] cursor-col-resize transition-colors ${resizing?.type === 'date' ? 'bg-[#1f6feb] opacity-100' : 'hover:bg-[#1f6feb]/30 opacity-0 hover:opacity-100'}`}
-           style={{ right: `calc(16px + 48px + ${dateWidth}px - 2px)` }}
-           onMouseDown={(e) => handleMouseDown(e, 'date')}
-         />
-      </div>
-
       {/* Scrollable List with Virtualization */}
       <div 
         ref={scrollRef}
@@ -600,8 +634,28 @@ const CommitGraph: React.FC = () => {
         
         <div 
           className="relative"
-          style={{ height: `${totalHeight}px`, minWidth: `${graphWidth + authorWidth + dateWidth + 280}px` }}
+          style={{ height: `${totalHeight}px`, minWidth: `${graphWidth + MESSAGE_MIN_WIDTH + authorWidth + dateWidth + SHA_COLUMN_WIDTH}px` }}
         >
+          {/* Column Resizers (rendered in scroll content coordinate space) */}
+          <div className="absolute inset-y-0 right-0 z-40 pointer-events-none">
+            {/* Resizer: Between Commit Message and Author Name */}
+            <div
+              className={`absolute pointer-events-auto h-full w-[4px] cursor-col-resize transition-colors ${
+                resizing?.type === 'author' ? 'bg-[#1f6feb] opacity-100' : 'hover:bg-[#1f6feb]/30 opacity-0 hover:opacity-100'
+              }`}
+              style={{ right: `${SHA_COLUMN_WIDTH + dateWidth + authorWidth - 2}px` }}
+              onMouseDown={(e) => handleMouseDown(e, 'author')}
+            />
+            {/* Resizer: Between Author Name and Date */}
+            <div
+              className={`absolute pointer-events-auto h-full w-[4px] cursor-col-resize transition-colors ${
+                resizing?.type === 'date' ? 'bg-[#1f6feb] opacity-100' : 'hover:bg-[#1f6feb]/30 opacity-0 hover:opacity-100'
+              }`}
+              style={{ right: `${SHA_COLUMN_WIDTH + dateWidth - 2}px` }}
+              onMouseDown={(e) => handleMouseDown(e, 'date')}
+            />
+          </div>
+
           <div
             className="absolute top-0 left-0 w-full"
             style={{ transform: `translateY(${offsetY}px)`, willChange: 'transform' }}

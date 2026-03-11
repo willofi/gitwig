@@ -1,5 +1,6 @@
 import React from 'react';
 import { useRepoStore } from '@/store/repoStore';
+import { useGitActions } from '@/hooks/useGitActions';
 import { RefreshCw, Settings, Terminal, Loader2 } from 'lucide-react';
 
 interface MainToolbarProps {
@@ -7,21 +8,10 @@ interface MainToolbarProps {
 }
 
 const MainToolbar: React.FC<MainToolbarProps> = ({ setShowSettingsModal }) => {
-  const { currentPath, refresh, status, lastCommand, isExecuting, viewMode, setViewMode, addGitLog, updateGitLog } = useRepoStore();
+  const { currentPath, refresh, status, lastCommand, isExecuting, viewMode, setViewMode } = useRepoStore();
+  const { runWithLog } = useGitActions();
   const isMac = window.electronAPI.platform === 'darwin';
   const isWindows = window.electronAPI.platform === 'win32';
-
-  const runWithLog = async (cmd: string, action: () => Promise<any>) => {
-    const logId = addGitLog({ command: cmd, status: 'pending' });
-    const startTime = Date.now();
-    try {
-      await action();
-      updateGitLog(logId, { status: 'success', duration: Date.now() - startTime });
-    } catch (e: any) {
-      updateGitLog(logId, { status: 'error', error: e.message || 'Action failed', duration: Date.now() - startTime });
-      throw e;
-    }
-  };
 
   const handleFetch = async () => {
     if (!currentPath) return;

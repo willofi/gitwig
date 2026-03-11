@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useRepoStore } from '@/store/repoStore';
+import { useGitActions } from '@/hooks/useGitActions';
 import { Plus, Minus, Check, PlusCircle, MinusCircle, Star, PanelRightClose } from 'lucide-react';
 
 // ─── Heuristic commit message generator ───────────────────────────────────────
@@ -115,20 +116,9 @@ const FilePathLabel: React.FC<{ path: string; className: string }> = ({ path, cl
 };
 
 const StagingPanel: React.FC<StagingPanelProps> = ({ onCollapse }) => {
-  const { status, currentPath, refresh, refreshStatus, addGitLog, updateGitLog } = useRepoStore();
+  const { status, currentPath, refresh, refreshStatus } = useRepoStore();
+  const { runWithLog } = useGitActions();
   const [message, setMessage] = useState('');
-
-  const runWithLog = async (cmd: string, action: () => Promise<any>) => {
-    const logId = addGitLog({ command: cmd, status: 'pending' });
-    const startTime = Date.now();
-    try {
-      await action();
-      updateGitLog(logId, { status: 'success', duration: Date.now() - startTime });
-    } catch (e: any) {
-      updateGitLog(logId, { status: 'error', error: e.message || 'Action failed', duration: Date.now() - startTime });
-      throw e;
-    }
-  };
 
   // add/reset는 status만 갱신하면 충분 (branches·stashes 불변)
   const handleAdd      = async (fp: string) => { if (!currentPath) return; await runWithLog(`git add ${fp}`, () => window.electronAPI.git.add(currentPath, fp)); await refreshStatus(); };

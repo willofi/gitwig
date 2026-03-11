@@ -1,21 +1,11 @@
 import React from 'react';
 import { useRepoStore } from '@/store/repoStore';
+import { useGitActions } from '@/hooks/useGitActions';
 import { Archive, Play } from 'lucide-react';
 
 const StashPanel: React.FC = () => {
-  const { stashes, currentPath, refresh, addGitLog, updateGitLog } = useRepoStore();
-
-  const runWithLog = async (cmd: string, action: () => Promise<any>) => {
-    const logId = addGitLog({ command: cmd, status: 'pending' });
-    const startTime = Date.now();
-    try {
-      await action();
-      updateGitLog(logId, { status: 'success', duration: Date.now() - startTime });
-    } catch (e: any) {
-      updateGitLog(logId, { status: 'error', error: e.message || 'Action failed', duration: Date.now() - startTime });
-      throw e;
-    }
-  };
+  const { stashes, currentPath, refresh } = useRepoStore();
+  const { runWithLog } = useGitActions();
 
   const handleApply = async (index: number) => {
     if (!currentPath) return;

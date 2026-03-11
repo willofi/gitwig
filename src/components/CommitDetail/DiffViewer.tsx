@@ -1,54 +1,10 @@
 import React from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
+import { parseUnifiedDiff, type DiffLine } from '@/utils/diffParser';
 
 interface DiffViewerProps {
   diff: string;
   fileName?: string;
-}
-
-type LineType = 'add' | 'del' | 'context' | 'hunk' | 'file-header';
-
-interface DiffLine {
-  type: LineType;
-  content: string;
-  oldNo: number | null;
-  newNo: number | null;
-}
-
-function parseDiff(raw: string): DiffLine[] {
-  const result: DiffLine[] = [];
-  let oldNo = 0;
-  let newNo = 0;
-
-  for (const line of raw.split('\n')) {
-    if (
-      line.startsWith('diff ') || line.startsWith('index ') ||
-      line.startsWith('new file') || line.startsWith('deleted file') ||
-      line.startsWith('Binary') || line.startsWith('--- ') || line.startsWith('+++ ')
-    ) {
-      result.push({ type: 'file-header', content: line, oldNo: null, newNo: null });
-    } else if (line.startsWith('@@')) {
-      const m = line.match(/@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
-      if (m) {
-        oldNo = parseInt(m[1]) - 1;
-        newNo = parseInt(m[2]) - 1;
-      }
-      result.push({ type: 'hunk', content: line, oldNo: null, newNo: null });
-    } else if (line.startsWith('+')) {
-      newNo++;
-      result.push({ type: 'add', content: line.slice(1), oldNo: null, newNo });
-    } else if (line.startsWith('-')) {
-      oldNo++;
-      result.push({ type: 'del', content: line.slice(1), oldNo, newNo: null });
-    } else {
-      // context line (starts with ' ' or empty at end)
-      oldNo++;
-      newNo++;
-      result.push({ type: 'context', content: line.length > 0 ? line.slice(1) : '', oldNo, newNo });
-    }
-  }
-
-  return result;
 }
 
 function getDiffStats(lines: DiffLine[]) {
@@ -115,7 +71,7 @@ const DiffViewer: React.FC<DiffViewerProps> = ({ diff, fileName }) => {
     );
   }
 
-  const lines = parseDiff(diff);
+  const lines = parseUnifiedDiff(diff);
   const { adds, dels } = getDiffStats(lines);
 
   return (

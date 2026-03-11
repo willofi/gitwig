@@ -1,31 +1,6 @@
 import React, { useRef, useCallback } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type LineType = 'add' | 'del' | 'context' | 'hunk' | 'file-header';
-
-interface DiffLine {
-  type: LineType;
-  content: string;
-  oldNo: number | null;
-  newNo: number | null;
-}
-
-interface SplitSide {
-  lineNo: number | null;
-  content: string;
-  type: 'add' | 'del' | 'context' | 'empty';
-}
-
-interface SplitRow {
-  key: string;
-  isSpanning: boolean;
-  spanContent?: string;
-  spanType?: 'file-header' | 'hunk';
-  left?: SplitSide;
-  right?: SplitSide;
-}
+import { buildSplitRows, parseUnifiedDiff, type DiffLine, type SplitRow } from '@/utils/diffParser';
 
 // ─── Theme tokens ─────────────────────────────────────────────────────────────
 
@@ -84,73 +59,6 @@ const SPLIT_THEME = {
   },
 } as const;
 
-// ─── Parsers ──────────────────────────────────────────────────────────────────
-
-function parseDiff(raw: string): DiffLine[] {
-  const result: DiffLine[] = [];
-  let oldNo = 0;
-  let newNo = 0;
-  for (const line of raw.split('\n')) {
-    if (line.startsWith('diff ') || line.startsWith('index ') || line.startsWith('new file') ||
-        line.startsWith('deleted file') || line.startsWith('Binary') ||
-        line.startsWith('--- ') || line.startsWith('+++ ')) {
-      result.push({ type: 'file-header', content: line, oldNo: null, newNo: null });
-    } else if (line.startsWith('@@')) {
-      const m = line.match(/@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
-      if (m) { oldNo = parseInt(m[1]) - 1; newNo = parseInt(m[2]) - 1; }
-      result.push({ type: 'hunk', content: line, oldNo: null, newNo: null });
-    } else if (line.startsWith('+')) {
-      newNo++;
-      result.push({ type: 'add', content: line.slice(1), oldNo: null, newNo });
-    } else if (line.startsWith('-')) {
-      oldNo++;
-      result.push({ type: 'del', content: line.slice(1), oldNo, newNo: null });
-    } else {
-      oldNo++; newNo++;
-      result.push({ type: 'context', content: line.length > 0 ? line.slice(1) : '', oldNo, newNo });
-    }
-  }
-  return result;
-}
-
-function parseSplitDiff(raw: string): SplitRow[] {
-  const unified = parseDiff(raw);
-  const rows: SplitRow[] = [];
-  let ki = 0;
-  let i = 0;
-  while (i < unified.length) {
-    const line = unified[i];
-    if (line.type === 'file-header' || line.type === 'hunk') {
-      rows.push({ key: String(ki++), isSpanning: true, spanContent: line.content, spanType: line.type });
-      i++; continue;
-    }
-    if (line.type === 'context') {
-      rows.push({ key: String(ki++), isSpanning: false,
-        left:  { lineNo: line.oldNo, content: line.content, type: 'context' },
-        right: { lineNo: line.newNo, content: line.content, type: 'context' },
-      });
-      i++; continue;
-    }
-    const dels: DiffLine[] = [];
-    const adds: DiffLine[] = [];
-    while (i < unified.length && (unified[i].type === 'del' || unified[i].type === 'add')) {
-      if (unified[i].type === 'del') dels.push(unified[i]);
-      else adds.push(unified[i]);
-      i++;
-    }
-    const maxLen = Math.max(dels.length, adds.length);
-    for (let j = 0; j < maxLen; j++) {
-      const del = dels[j];
-      const add = adds[j];
-      rows.push({ key: String(ki++), isSpanning: false,
-        left:  del ? { lineNo: del.oldNo, content: del.content, type: 'del'   } : { lineNo: null, content: '', type: 'empty' },
-        right: add ? { lineNo: add.newNo, content: add.content, type: 'add'   } : { lineNo: null, content: '', type: 'empty' },
-      });
-    }
-  }
-  return rows;
-}
-
 function getDiffStats(lines: DiffLine[]) {
   return { adds: lines.filter(l => l.type === 'add').length, dels: lines.filter(l => l.type === 'del').length };
 }
@@ -196,8 +104,8 @@ const SplitDiffViewer: React.FC<SplitDiffViewerProps> = ({ diff, fileName, force
     );
   }
 
-  const unified = parseDiff(diff);
-  const rows    = parseSplitDiff(diff);
+  const unified = parseUnifiedDiff(diff);
+  const rows = buildSplitRows(diff);
   const { adds, dels } = getDiffStats(unified);
 
   const isMac = platform === 'darwin';
