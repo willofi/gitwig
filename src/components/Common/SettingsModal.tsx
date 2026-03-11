@@ -32,12 +32,19 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
   useEffect(() => {
     const api = window.electronAPI?.updater;
     if (!api) return;
-    api.onChecking(() => setUpdateStatus('checking'));
-    api.onAvailable((info) => { setUpdateStatus('available'); setUpdateVersion(info.version); });
-    api.onNotAvailable(() => setUpdateStatus('up-to-date'));
-    api.onProgress((p) => { setUpdateStatus('downloading'); setUpdateProgress(Math.round(p.percent)); });
-    api.onDownloaded((info) => { setUpdateStatus('downloaded'); setUpdateVersion(info.version); });
-    api.onError(() => setUpdateStatus('error'));
+
+    const unsubs = [
+      api.onChecking(() => setUpdateStatus('checking')),
+      api.onAvailable((info) => { setUpdateStatus('available'); setUpdateVersion(info.version); }),
+      api.onNotAvailable(() => setUpdateStatus('up-to-date')),
+      api.onProgress((p) => { setUpdateStatus('downloading'); setUpdateProgress(Math.round(p.percent)); }),
+      api.onDownloaded((info) => { setUpdateStatus('downloaded'); setUpdateVersion(info.version); }),
+      api.onError(() => setUpdateStatus('error')),
+    ];
+
+    return () => {
+      unsubs.forEach(unsub => unsub());
+    };
   }, []);
 
   useEffect(() => {

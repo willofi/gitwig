@@ -30,32 +30,33 @@ const UpdateBanner: React.FC = () => {
     const api = window.electronAPI?.updater;
     if (!api) return;
 
-    api.onChecking(() => setState({ status: 'checking' }));
+    const unsubs = [
+      api.onChecking(() => setState({ status: 'checking' })),
+      api.onAvailable((info) => {
+        setState({ status: 'available', version: info.version });
+        setDismissed(false);
+      }),
+      api.onNotAvailable(() => setState({ status: 'idle' })),
+      api.onProgress((p) => {
+        setState(prev => ({
+          ...prev,
+          status: 'downloading',
+          progress: p.percent,
+          bytesPerSecond: p.bytesPerSecond,
+        }));
+      }),
+      api.onDownloaded((info) => {
+        setState({ status: 'downloaded', version: info.version });
+        setDismissed(false);
+      }),
+      api.onError((msg) => {
+        setState({ status: 'error', error: msg });
+      }),
+    ];
 
-    api.onAvailable((info) => {
-      setState({ status: 'available', version: info.version });
-      setDismissed(false);
-    });
-
-    api.onNotAvailable(() => setState({ status: 'idle' }));
-
-    api.onProgress((p) => {
-      setState(prev => ({
-        ...prev,
-        status: 'downloading',
-        progress: p.percent,
-        bytesPerSecond: p.bytesPerSecond,
-      }));
-    });
-
-    api.onDownloaded((info) => {
-      setState({ status: 'downloaded', version: info.version });
-      setDismissed(false);
-    });
-
-    api.onError((msg) => {
-      setState({ status: 'error', error: msg });
-    });
+    return () => {
+      unsubs.forEach(unsub => unsub());
+    };
   }, []);
 
   // 보이지 않는 상태들

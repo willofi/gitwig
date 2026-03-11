@@ -22,6 +22,13 @@ autoUpdater.autoInstallOnAppQuit = true; // 종료 시 자동 설치
 
 // 수동 업데이트 전용 — 자동 체크 없음, 이벤트 리스너만 등록
 function setupUpdaterListeners(mainWin: BrowserWindow) {
+  autoUpdater.removeAllListeners('checking-for-update');
+  autoUpdater.removeAllListeners('update-available');
+  autoUpdater.removeAllListeners('update-not-available');
+  autoUpdater.removeAllListeners('download-progress');
+  autoUpdater.removeAllListeners('update-downloaded');
+  autoUpdater.removeAllListeners('error');
+
   autoUpdater.on('checking-for-update', () => {
     mainWin.webContents.send('update:checking');
   });
