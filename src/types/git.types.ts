@@ -64,6 +64,12 @@ export interface GitLogOptions {
   excludeMerges?: boolean;
 }
 
+export interface StashEntry {
+  hash: string;
+  date: string;
+  message: string;
+}
+
 export interface GitAPI {
   getCurrentBranch: (path: string) => Promise<string | null>;
   getLog: (path: string, options?: GitLogOptions) => Promise<string>;
@@ -77,12 +83,14 @@ export interface GitAPI {
   commit: (path: string, message: string, options?: any) => Promise<void>;
   push: (path: string) => Promise<void>;
   pull: (path: string) => Promise<void>;
+  pullBranch: (path: string, branch: string, tracking?: string) => Promise<void>;
   fetch: (path: string) => Promise<void>;
   checkIsRepo: (path: string) => Promise<boolean>;
+  disposeRepo: (path: string) => Promise<boolean>;
   getCommitFiles: (path: string, hash: string) => Promise<{ status: string, path: string }[]>;
   getDiff: (path: string, hash1?: string, hash2?: string, filePath?: string) => Promise<string>;
-  readFile: (path: string) => Promise<string>;
-  writeFile: (path: string, content: string) => Promise<void>;
+  readFile: (repoPath: string, relativePath: string) => Promise<string>;
+  writeFile: (repoPath: string, relativePath: string, content: string) => Promise<void>;
   add: (path: string, files: string | string[]) => Promise<void>;
   addAll: (path: string) => Promise<void>;
   resetAll: (path: string) => Promise<void>;
@@ -94,7 +102,7 @@ export interface GitAPI {
   cherryPick: (path: string, hash: string) => Promise<void>;
   stash: (path: string, message?: string) => Promise<void>;
   applyStash: (path: string, index: number) => Promise<void>;
-  getStashes: (path: string) => Promise<{ all: any[] }>;
+  getStashes: (path: string) => Promise<{ all: StashEntry[] }>;
 }
 
 export interface WindowAPI {
@@ -114,12 +122,12 @@ export interface DownloadProgress {
 }
 
 export interface UpdaterAPI {
-  onChecking:     (cb: () => void)                       => void;
-  onAvailable:    (cb: (info: UpdateInfo) => void)       => void;
-  onNotAvailable: (cb: () => void)                       => void;
-  onProgress:     (cb: (p: DownloadProgress) => void)    => void;
-  onDownloaded:   (cb: (info: UpdateInfo) => void)       => void;
-  onError:        (cb: (msg: string) => void)            => void;
+  onChecking:     (cb: () => void)                       => () => void;
+  onAvailable:    (cb: (info: UpdateInfo) => void)       => () => void;
+  onNotAvailable: (cb: () => void)                       => () => void;
+  onProgress:     (cb: (p: DownloadProgress) => void)    => () => void;
+  onDownloaded:   (cb: (info: UpdateInfo) => void)       => () => void;
+  onError:        (cb: (msg: string) => void)            => () => void;
   download:       ()                                     => Promise<void>;
   install:        ()                                     => Promise<void>;
   check:          ()                                     => Promise<void>;

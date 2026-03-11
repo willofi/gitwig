@@ -1,5 +1,11 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
+function onChannel<T extends unknown[]>(channel: string, cb: (...args: T) => void) {
+  const listener = (_event: unknown, ...args: T) => cb(...args);
+  ipcRenderer.on(channel, listener);
+  return () => ipcRenderer.removeListener(channel, listener);
+}
+
 contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
   app: {
@@ -19,8 +25,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     commit: (path: string, message: string, options?: any) => ipcRenderer.invoke('git:commit', path, message, options),
     push: (path: string) => ipcRenderer.invoke('git:push', path),
     pull: (path: string) => ipcRenderer.invoke('git:pull', path),
+    pullBranch: (path: string, branch: string, tracking?: string) => ipcRenderer.invoke('git:pullBranch', path, branch, tracking),
     fetch: (path: string) => ipcRenderer.invoke('git:fetch', path),
     checkIsRepo: (path: string) => ipcRenderer.invoke('git:checkIsRepo', path),
+    disposeRepo: (path: string) => ipcRenderer.invoke('git:disposeRepo', path),
     getDiff: (path: string, hash1?: string, hash2?: string, filePath?: string) => ipcRenderer.invoke('git:getDiff', path, hash1, hash2, filePath),
     add: (path: string, files: string | string[]) => ipcRenderer.invoke('git:add', path, files),
     addAll: (path: string) => ipcRenderer.invoke('git:addAll', path),
@@ -34,8 +42,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     stash: (path: string, message?: string) => ipcRenderer.invoke('git:stash', path, message),
     applyStash: (path: string, index: number) => ipcRenderer.invoke('git:applyStash', path, index),
     getStashes: (path: string) => ipcRenderer.invoke('git:getStashes', path),
-    readFile: (path: string) => ipcRenderer.invoke('git:readFile', path),
-    writeFile: (path: string, content: string) => ipcRenderer.invoke('git:writeFile', path, content),
+    readFile: (repoPath: string, relativePath: string) => ipcRenderer.invoke('git:readFile', repoPath, relativePath),
+    writeFile: (repoPath: string, relativePath: string, content: string) => ipcRenderer.invoke('git:writeFile', repoPath, relativePath, content),
     getCommitFiles: (path: string, hash: string) => ipcRenderer.invoke('git:getCommitFiles', path, hash),
   },
   dialog: {
@@ -46,12 +54,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('window:openSplitDiff', params),
   },
   updater: {
-    onChecking:      (cb: () => void)                   => ipcRenderer.on('update:checking',         (_, ...a) => cb(...a as [])),
-    onAvailable:     (cb: (info: UpdateInfo) => void)   => ipcRenderer.on('update:available',         (_, info) => cb(info)),
-    onNotAvailable:  (cb: () => void)                   => ipcRenderer.on('update:not-available',     (_, ...a) => cb(...a as [])),
-    onProgress:      (cb: (p: DownloadProgress) => void)=> ipcRenderer.on('update:download-progress', (_, p)    => cb(p)),
-    onDownloaded:    (cb: (info: UpdateInfo) => void)   => ipcRenderer.on('update:downloaded',        (_, info) => cb(info)),
-    onError:         (cb: (msg: string) => void)        => ipcRenderer.on('update:error',             (_, msg)  => cb(msg)),
+    onChecking:      (cb: () => void)                   => onChannel('update:checking', cb),
+    onAvailable:     (cb: (info: UpdateInfo) => void)   => onChannel('update:available', cb),
+    onNotAvailable:  (cb: () => void)                   => onChannel('update:not-available', cb),
+    onProgress:      (cb: (p: DownloadProgress) => void)=> onChannel('update:download-progress', cb),
+    onDownloaded:    (cb: (info: UpdateInfo) => void)   => onChannel('update:downloaded', cb),
+    onError:         (cb: (msg: string) => void)        => onChannel('update:error', cb),
     download:        ()                                 => ipcRenderer.invoke('update:download'),
     install:         ()                                 => ipcRenderer.invoke('update:install'),
     check:           ()                                 => ipcRenderer.invoke('update:check'),

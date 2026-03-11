@@ -1,8 +1,12 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useRepoStore } from '@/store/repoStore';
 import { useTheme } from '@/contexts/ThemeContext';
-import { GitBranch, ChevronDown, ChevronRight, Check, Search, MoreVertical, Plus, Edit2, Trash2, GitMerge, RefreshCw, ArrowUpCircle, Folder, FolderOpen, Star, Upload, Download } from 'lucide-react';
+import { useGitActions } from '@/hooks/useGitActions';
+import { mapGitActionError } from '@/utils/gitErrorMapper';
+import { GitBranch, ChevronDown, ChevronRight, Check, Search, Plus, Edit2, Trash2, GitMerge, RefreshCw, ArrowUpCircle, Folder, FolderOpen, Star, Upload, Download } from 'lucide-react';
 import PromptModal from '../Common/PromptModal';
+import ConfirmModal from '../Common/ConfirmModal';
+import NotificationModal from '../Common/NotificationModal';
 
 interface BranchNode {
   name: string;
@@ -13,7 +17,20 @@ interface BranchNode {
 
 const BranchPanel: React.FC = () => {
   const { isDark } = useTheme();
-  const { branches, branchDetails, currentBranch, currentPath, refresh, setViewingBranch, viewingBranch, highlightedBranch, setHighlightedBranch, addGitLog, updateGitLog } = useRepoStore();
+  const {
+    branches,
+    branchDetails,
+    currentBranch,
+    currentPath,
+    refresh,
+    setViewingBranch,
+    viewingBranch,
+    highlightedBranch,
+    setHighlightedBranch,
+    favoriteBranches,
+    toggleFavoriteBranch
+  } = useRepoStore();
+  const { runWithLog } = useGitActions();
 
   const hoverBg      = isDark ? '#2d2d30' : '#eef0f3';
   const activeBg     = isDark ? '#2d2d30' : '#eef0f3';
@@ -31,10 +48,25 @@ const BranchPanel: React.FC = () => {
   const menuBorder   = isDark ? '#30363d' : '#d0d7de';
   const menuText     = isDark ? '#8b949e' : '#57606a';
   const menuDivider  = isDark ? '#30363d' : '#e5e7eb';
+  const toolbarIdle = isDark ? '#8b949e' : '#57606a';
+  const toolbarHover = isDark ? 'rgba(31,111,235,0.16)' : 'rgba(9,105,218,0.1)';
+  const toolbarDisabled = isDark ? '#484f58' : '#8c959f';
   const [searchTerm, setSearchTerm] = useState('');
-  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['local', 'remote']));
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['local', 'remote', 'remote/origin']));
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, branch: string } | null>(null);
   const [promptConfig, setPromptConfig] = useState<{ title: string, message: string, initialValue: string, action: (val: string) => void } | null>(null);
+  const [confirmConfig, setConfirmConfig] = useState<{
+    title: string;
+    message: string;
+    confirmLabel?: string;
+    danger?: boolean;
+    action: () => void | Promise<void>;
+  } | null>(null);
+  const [notificationConfig, setNotificationConfig] = useState<{
+    title: string;
+    message: string;
+    tone?: 'info' | 'success' | 'error';
+  } | null>(null);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setContextMenu(null); };
@@ -60,18 +92,6 @@ const BranchPanel: React.FC = () => {
     });
   }, [currentBranch]);
 
-  const runWithLog = async (cmd: string, action: () => Promise<any>) => {
-    const logId = addGitLog({ command: cmd, status: 'pending' });
-    const startTime = Date.now();
-    try {
-      await action();
-      updateGitLog(logId, { status: 'success', duration: Date.now() - startTime });
-    } catch (e: any) {
-      updateGitLog(logId, { status: 'error', error: e.message || 'Action failed', duration: Date.now() - startTime });
-      throw e;
-    }
-  };
-
   const toggleFolder = (path: string) => {
     const newExpanded = new Set(expandedFolders);
     if (newExpanded.has(path)) newExpanded.delete(path);
@@ -83,13 +103,6 @@ const BranchPanel: React.FC = () => {
     const root: Record<string, BranchNode> = {
       local: { name: 'local', fullName: 'local', children: {}, isBranch: false },
       remote: { name: 'remote', fullName: 'remote', children: {}, isBranch: false }
-    };
-
-    const isRootMainBranch = (fullName: string) => {
-      const name = fullName.replace('remotes/origin/', '').replace('remotes/', '');
-      const lower = name.toLowerCase();
-      // Only treat as root main if it's strictly 'main' or 'master' without any folder path
-      return (lower === 'main' || lower === 'master') && !name.includes('/');
     };
 
     // renderNode에서 자식 노드를 정렬하므로 여기서 pre-sort 불필요
@@ -115,24 +128,19 @@ const BranchPanel: React.FC = () => {
   };
 
   const tree = useMemo(() => buildTree(branches.filter(b => b.toLowerCase().includes(searchTerm.toLowerCase()))), [branches, searchTerm]);
+  const selectedBranch = highlightedBranch || viewingBranch || currentBranch;
+  const isSelectedCurrentBranch = !!selectedBranch && selectedBranch === currentBranch;
+  const isSelectedFavorite = !!selectedBranch && favoriteBranches.includes(selectedBranch);
+  const isSelectedRemoteBranch = !!selectedBranch && selectedBranch.startsWith('remotes/');
 
   const handleAction = async (action: string, branch: string) => {
     if (!currentPath) return;
     setContextMenu(null);
 
     const handleGitError = async (e: any, taskName: string, branchContext?: string) => {
-      if (e.message.includes('overwritten by checkout') || e.message.includes('overwritten by merge')) {
-        const fileListRaw = e.message.split('overwritten by')[1]?.split('Please commit')[0]?.trim();
-        // 'merge:' 또는 'checkout:' 등 콜론으로 끝나는 안내 문구를 필터링하고 실제 파일 경로만 추출
-        const files = (fileListRaw || '')
-          .split(/\s+/)
-          .filter((f: string) => f && !f.endsWith(':'))
-          .filter(Boolean);
-        
-        if (files.length === 0) {
-          alert(`Git Error (${taskName}): ${e.message}`);
-          return;
-        }
+      const mapped = mapGitActionError(e);
+      if (mapped.type === 'worktree-overwrite') {
+        const files = mapped.files;
 
         const message = `${taskName} 실패: 로컬 작업 내역과 서버의 내용이 충돌합니다.\n\n` +
           `대상 파일:\n${files.join('\n')}\n\n` +
@@ -141,17 +149,31 @@ const BranchPanel: React.FC = () => {
           `2. 변경 사항을 Commit한 후 다시 시도하세요.\n` +
           `3. [강제] 로컬 내용을 버리고 서버 버전으로 덮어쓰시겠습니까? (Discard & Pull)`;
         
-        if (window.confirm(message + '\n\n"확인"을 누르면 로컬 변경사항을 삭제하고 서버 내용을 가져옵니다.')) {
-          try {
-            await runWithLog('git discard changes', () => window.electronAPI.git.discardChanges(currentPath!, files));
-            // Re-run the original action
-            await handleAction('pull', branchContext || currentBranch!);
-          } catch (err: any) {
-            alert(`강제 업데이트 실패: ${err.message}`);
-          }
-        }
+        setConfirmConfig({
+          title: '로컬 변경사항 폐기 후 업데이트',
+          message: `${message}\n\n"강제 업데이트"를 누르면 로컬 변경사항을 삭제하고 서버 내용을 가져옵니다.`,
+          confirmLabel: '강제 업데이트',
+          danger: true,
+          action: async () => {
+            try {
+              await runWithLog('git discard changes', () => window.electronAPI.git.discardChanges(currentPath!, files));
+              // Re-run the original action
+              await handleAction('pull', branchContext || currentBranch!);
+            } catch (err: any) {
+              setNotificationConfig({
+                title: '강제 업데이트 실패',
+                message: err.message || '알 수 없는 오류가 발생했습니다.',
+                tone: 'error',
+              });
+            }
+          },
+        });
       } else {
-        alert(`Git Error (${taskName}): ${e.message}`);
+        setNotificationConfig({
+          title: `Git Error (${taskName})`,
+          message: mapped.message || '알 수 없는 오류가 발생했습니다.',
+          tone: 'error',
+        });
       }
     };
 
@@ -205,33 +227,56 @@ const BranchPanel: React.FC = () => {
                 await runWithLog(`git branch -m ${branch} ${newName}`, () => window.electronAPI.git.renameBranch(currentPath, branch, newName));
                 await refresh();
               } catch (e: any) {
-                alert(`이름 변경 실패: ${e.message}`);
+                setNotificationConfig({
+                  title: '이름 변경 실패',
+                  message: e.message || '알 수 없는 오류가 발생했습니다.',
+                  tone: 'error',
+                });
               }
             }
           });
           break;
         case 'delete':
-          if (window.confirm(`Delete branch ${branch}?`)) {
-            try {
-              await runWithLog(`git branch -d ${branch}`, () => window.electronAPI.git.deleteBranch(currentPath, branch));
-            } catch (e: any) {
-              alert(`삭제 실패: ${e.message}`);
-            }
-          }
-          break;
+          setConfirmConfig({
+            title: '브랜치 삭제',
+            message: `${branch} 브랜치를 삭제하시겠습니까?`,
+            confirmLabel: '삭제',
+            danger: true,
+            action: async () => {
+              try {
+                await runWithLog(`git branch -d ${branch}`, () => window.electronAPI.git.deleteBranch(currentPath, branch));
+                await refresh();
+              } catch (e: any) {
+                setNotificationConfig({
+                  title: '삭제 실패',
+                  message: e.message || '알 수 없는 오류가 발생했습니다.',
+                  tone: 'error',
+                });
+              }
+            },
+          });
+          return;
         case 'push':
           try {
             await runWithLog(`git push`, () => window.electronAPI.git.push(currentPath));
           } catch (e: any) {
-            alert(`푸시 실패: ${e.message}`);
+            setNotificationConfig({
+              title: '푸시 실패',
+              message: e.message || '알 수 없는 오류가 발생했습니다.',
+              tone: 'error',
+            });
           }
           break;
         case 'pull':
           try {
-            if (branch !== currentBranch) {
-              await runWithLog(`git checkout ${branch}`, () => window.electronAPI.git.checkout(currentPath, branch));
+            if (branch === currentBranch) {
+              await runWithLog(`git pull`, () => window.electronAPI.git.pull(currentPath));
+            } else {
+              await runWithLog(
+                `git fetch ${branch}`,
+                () => window.electronAPI.git.pullBranch(currentPath, branch, branchDetails[branch]?.tracking)
+              );
             }
-            await runWithLog(`git pull origin ${branch}`, () => window.electronAPI.git.pull(currentPath));
           } catch (e) {
             await handleGitError(e, '업데이트(Pull)', branch);
           }
@@ -243,12 +288,7 @@ const BranchPanel: React.FC = () => {
     }
   };
 
-  const isRootMain = (fullName: string) => {
-    const name = fullName.replace('remotes/origin/', '').replace('remotes/', '');
-    const lower = name.toLowerCase();
-    // Only 'main' or 'master' at the root level (no slashes)
-    return (lower === 'main' || lower === 'master') && !name.includes('/');
-  };
+  const isFavoriteBranch = (fullName: string) => favoriteBranches.includes(fullName);
 
   const renderNode = (node: BranchNode, depth: number, path: string) => {
     const isExpanded = expandedFolders.has(path);
@@ -257,8 +297,8 @@ const BranchPanel: React.FC = () => {
     const isViewing = node.fullName === viewingBranch;
     const isHighlighted = node.fullName === highlightedBranch;
     
-    const isMain = node.isBranch && isRootMain(node.fullName);
     const details = node.isBranch ? branchDetails[node.fullName] : null;
+    const isFavorite = node.isBranch && isFavoriteBranch(node.fullName);
 
     const isActive = isViewing || isHighlighted;
     const itemBg    = isActive ? activeBg : 'transparent';
@@ -296,7 +336,7 @@ const BranchPanel: React.FC = () => {
           </span>
           <span className="w-4 flex items-center shrink-0 mr-1">
             {node.isBranch ? (
-              isMain ? (
+              isFavorite ? (
                 <Star size={13} className="fill-[#eab308] text-[#eab308]" />
               ) : (
                 <GitBranch size={13} style={{ color: isCurrent || isViewing ? activeText : (isDark ? '#757575' : '#8c959f') }} />
@@ -345,19 +385,19 @@ const BranchPanel: React.FC = () => {
           <div>
             {Object.values(node.children)
               .sort((a, b) => {
-                // 1. Root Main/Master (Priority 0)
-                const isAMain = a.isBranch && isRootMain(a.fullName);
-                const isBMain = b.isBranch && isRootMain(b.fullName);
-                if (isAMain && !isBMain) return -1;
-                if (!isAMain && isBMain) return 1;
+                // 1. Favorite branches first within the current folder level
+                const isAFavorite = a.isBranch && isFavoriteBranch(a.fullName);
+                const isBFavorite = b.isBranch && isFavoriteBranch(b.fullName);
+                if (isAFavorite && !isBFavorite) return -1;
+                if (!isAFavorite && isBFavorite) return 1;
 
-                // 2. Folders before Branches (Priority 1)
+                // 2. Folders before non-favorite branches
                 const aHasChildren = Object.keys(a.children).length > 0;
                 const bHasChildren = Object.keys(b.children).length > 0;
                 if (aHasChildren && !bHasChildren) return -1;
                 if (!aHasChildren && bHasChildren) return 1;
 
-                // 3. Alphabetical (Priority 2)
+                // 3. Alphabetical
                 return a.name.localeCompare(b.name);
               })
               .map(child => renderNode(child, depth + 1, `${path}/${child.name}`))}
@@ -369,23 +409,96 @@ const BranchPanel: React.FC = () => {
 
   return (
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden" style={{ background: containerBg }} onClick={() => setContextMenu(null)}>
-      <div className="p-3 space-y-2" style={{ borderBottom: `1px solid ${isDark ? '#333333' : '#d0d7de'}` }}>
-        <h2 className="text-[10px] font-bold uppercase tracking-wider" style={{ color: isDark ? '#666666' : '#8c959f' }}>Branches</h2>
-        <div className="relative">
-          <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2" style={{ color: isDark ? '#666666' : '#8c959f' }} />
-          <input
-            type="text"
-            placeholder="Search branches..."
-            className="w-full text-[11px] pl-7 pr-2 py-1 rounded focus:outline-none"
-            style={{
-              background: isDark ? '#1e1e1e' : '#ffffff',
-              color: isDark ? '#cccccc' : '#24292f',
-              border: `1px solid ${isDark ? '#3c3c3c' : '#d0d7de'}`,
-            }}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+      <div style={{ borderBottom: `1px solid ${isDark ? '#333333' : '#d0d7de'}` }}>
+        <div className="p-3 pb-2 space-y-2">
+          <h2 className="text-[10px] font-bold uppercase tracking-wider" style={{ color: isDark ? '#666666' : '#8c959f' }}>Branches</h2>
+          <div className="relative">
+            <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2" style={{ color: isDark ? '#666666' : '#8c959f' }} />
+            <input
+              type="text"
+              placeholder="Search branches..."
+              className="w-full text-[11px] pl-7 pr-2 py-1 rounded focus:outline-none"
+              style={{
+                background: isDark ? '#1e1e1e' : '#ffffff',
+                color: isDark ? '#cccccc' : '#24292f',
+                border: `1px solid ${isDark ? '#3c3c3c' : '#d0d7de'}`,
+              }}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
         </div>
+        <div className="h-px" style={{ background: isDark ? '#333333' : '#d0d7de' }} />
+        <div className="px-3 py-1">
+          <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1">
+            <ShortcutIconButton
+              icon={<Plus size={12} />}
+              title={selectedBranch ? `${selectedBranch} 기준 새 브랜치 생성` : '브랜치를 선택하세요'}
+              disabled={!selectedBranch}
+              isDark={isDark}
+              idleColor={toolbarIdle}
+              hoverBg={toolbarHover}
+              disabledColor={toolbarDisabled}
+              onClick={() => selectedBranch && handleAction('new', selectedBranch)}
+            />
+            <ShortcutIconButton
+              icon={<Download size={12} />}
+              title={selectedBranch ? `${selectedBranch} 업데이트 (Pull)` : '브랜치를 선택하세요'}
+              disabled={!selectedBranch || isSelectedRemoteBranch}
+              isDark={isDark}
+              idleColor={toolbarIdle}
+              hoverBg={toolbarHover}
+              disabledColor={toolbarDisabled}
+              onClick={() => selectedBranch && handleAction('pull', selectedBranch)}
+            />
+            <ShortcutIconButton
+              icon={<Trash2 size={12} />}
+              title={
+                !selectedBranch
+                  ? '브랜치를 선택하세요'
+                  : isSelectedCurrentBranch
+                    ? '현재 브랜치는 삭제할 수 없습니다'
+                    : `${selectedBranch} 삭제`
+              }
+              disabled={!selectedBranch || isSelectedCurrentBranch}
+              isDark={isDark}
+              idleColor={toolbarIdle}
+              hoverBg={toolbarHover}
+              disabledColor={toolbarDisabled}
+              danger
+              onClick={() => selectedBranch && handleAction('delete', selectedBranch)}
+            />
+            <ShortcutIconButton
+              icon={<Star size={12} className={isSelectedFavorite ? 'fill-current' : ''} />}
+              title={
+                !selectedBranch
+                  ? '브랜치를 선택하세요'
+                  : isSelectedFavorite
+                    ? `${selectedBranch} 즐겨찾기 해제`
+                    : `${selectedBranch} 즐겨찾기`
+              }
+              disabled={!selectedBranch}
+              isDark={isDark}
+              idleColor={isSelectedFavorite ? '#eab308' : toolbarIdle}
+              hoverBg={toolbarHover}
+              disabledColor={toolbarDisabled}
+              onClick={() => selectedBranch && toggleFavoriteBranch(selectedBranch)}
+            />
+          </div>
+          <span className="truncate text-[10px]" style={{ color: isDark ? '#6e7681' : '#8c959f', maxWidth: 130 }}>
+            {selectedBranch ? selectedBranch.replace(/^remotes\//, '') : 'No branch selected'}
+          </span>
+        </div>
+        </div>
+        <div
+          className="h-px"
+          style={{
+            background: isDark ? 'rgba(48,54,61,0.55)' : 'rgba(208,215,222,0.72)',
+            transform: 'scaleY(0.5)',
+            transformOrigin: 'center',
+          }}
+        />
       </div>
 
       <div className="flex-1 min-h-0 overflow-auto py-2 px-1">
@@ -406,36 +519,81 @@ const BranchPanel: React.FC = () => {
         />
       )}
 
+      {confirmConfig && (
+        <ConfirmModal
+          title={confirmConfig.title}
+          message={confirmConfig.message}
+          confirmLabel={confirmConfig.confirmLabel}
+          danger={confirmConfig.danger}
+          onClose={() => setConfirmConfig(null)}
+          onConfirm={() => {
+            confirmConfig.action();
+            setConfirmConfig(null);
+          }}
+        />
+      )}
+
+      {notificationConfig && (
+        <NotificationModal
+          title={notificationConfig.title}
+          message={notificationConfig.message}
+          tone={notificationConfig.tone}
+          onClose={() => setNotificationConfig(null)}
+        />
+      )}
+
       {contextMenu && (
-        <div
-          className="fixed z-[100] shadow-2xl py-1 rounded-md min-w-[180px] text-[12px]"
-          style={{ top: contextMenu.y, left: contextMenu.x, background: menuBg, border: `1px solid ${menuBorder}`, color: menuText }}
-          onClick={e => e.stopPropagation()}
-        >
-          <ContextMenuItem isDark={isDark} icon={<Check size={14} />} label="Checkout" onClick={() => handleAction('checkout', contextMenu.branch)} />
-          <ContextMenuItem isDark={isDark} icon={<Plus size={14} />} label="New Branch from this..." onClick={() => handleAction('new', contextMenu.branch)} />
-          <div className="h-[1px] my-1" style={{ background: menuDivider }} />
-          <ContextMenuItem isDark={isDark} icon={<GitMerge size={14} />} label={`Merge into ${currentBranch}`} onClick={() => handleAction('merge', contextMenu.branch)} />
-          <ContextMenuItem isDark={isDark} icon={<GitMerge size={14} />} label={`Squash Merge into ${currentBranch}`} onClick={() => handleAction('squash', contextMenu.branch)} />
-          <div className="h-[1px] my-1" style={{ background: menuDivider }} />
-          <ContextMenuItem isDark={isDark} icon={<RefreshCw size={14} />} label="Update (Pull)" onClick={() => handleAction('pull', contextMenu.branch)} />
-          <ContextMenuItem isDark={isDark} icon={<ArrowUpCircle size={14} />} label="Push..." onClick={() => handleAction('push', contextMenu.branch)} />
-          <div className="h-[1px] my-1" style={{ background: menuDivider }} />
-          <ContextMenuItem isDark={isDark} icon={<Edit2 size={14} />} label="Rename..." onClick={() => handleAction('rename', contextMenu.branch)} />
-          <ContextMenuItem isDark={isDark} danger icon={<Trash2 size={14} />} label="Delete" onClick={() => handleAction('delete', contextMenu.branch)} />
-        </div>
+        (() => {
+          const isCurrentContextBranch = contextMenu.branch === currentBranch;
+          const isRemoteContextBranch = contextMenu.branch.startsWith('remotes/');
+
+          return (
+            <div
+              className="fixed z-[100] shadow-2xl py-1 rounded-md min-w-[180px] text-[12px]"
+              style={{ top: contextMenu.y, left: contextMenu.x, background: menuBg, border: `1px solid ${menuBorder}`, color: menuText }}
+              onClick={e => e.stopPropagation()}
+            >
+              {!isCurrentContextBranch && (
+                <>
+                  <ContextMenuItem isDark={isDark} icon={<Check size={14} />} label="Checkout" onClick={() => handleAction('checkout', contextMenu.branch)} />
+                </>
+              )}
+              <ContextMenuItem isDark={isDark} icon={<Plus size={14} />} label="New Branch from this..." onClick={() => handleAction('new', contextMenu.branch)} />
+              {!isCurrentContextBranch && (
+                <>
+                  <div className="h-[1px] my-1" style={{ background: menuDivider }} />
+                  <ContextMenuItem isDark={isDark} disabled={isRemoteContextBranch} icon={<GitMerge size={14} />} label={`Merge into ${currentBranch}`} onClick={() => handleAction('merge', contextMenu.branch)} />
+                  <ContextMenuItem isDark={isDark} disabled={isRemoteContextBranch} icon={<GitMerge size={14} />} label={`Squash Merge into ${currentBranch}`} onClick={() => handleAction('squash', contextMenu.branch)} />
+                </>
+              )}
+              <div className="h-[1px] my-1" style={{ background: menuDivider }} />
+              <ContextMenuItem isDark={isDark} disabled={isRemoteContextBranch} icon={<RefreshCw size={14} />} label="Update (Pull)" onClick={() => handleAction('pull', contextMenu.branch)} />
+              <ContextMenuItem isDark={isDark} disabled={isRemoteContextBranch} icon={<ArrowUpCircle size={14} />} label="Push..." onClick={() => handleAction('push', contextMenu.branch)} />
+              <div className="h-[1px] my-1" style={{ background: menuDivider }} />
+              <ContextMenuItem isDark={isDark} icon={<Edit2 size={14} />} label="Rename..." onClick={() => handleAction('rename', contextMenu.branch)} />
+              {!isCurrentContextBranch && (
+                <ContextMenuItem isDark={isDark} danger icon={<Trash2 size={14} />} label="Delete" onClick={() => handleAction('delete', contextMenu.branch)} />
+              )}
+            </div>
+          );
+        })()
       )}
     </div>
   );
 };
 
-const ContextMenuItem: React.FC<{ icon: React.ReactNode, label: string, onClick: () => void, isDark: boolean, danger?: boolean }> = ({ icon, label, onClick, isDark, danger = false }) => (
+const ContextMenuItem: React.FC<{ icon: React.ReactNode, label: string, onClick: () => void, isDark: boolean, danger?: boolean, disabled?: boolean }> = ({ icon, label, onClick, isDark, danger = false, disabled = false }) => (
   <div
     className="flex items-center gap-2.5 px-3 py-1.5 cursor-pointer transition-colors"
     style={{
-      color: danger ? (isDark ? '#ff7b72' : '#cf222e') : (isDark ? '#8b949e' : '#57606a'),
+      color: disabled
+        ? (isDark ? '#484f58' : '#8c959f')
+        : danger ? (isDark ? '#ff7b72' : '#cf222e') : (isDark ? '#8b949e' : '#57606a'),
+      opacity: disabled ? 0.65 : 1,
+      cursor: disabled ? 'not-allowed' : 'pointer',
     }}
     onMouseEnter={(e) => {
+      if (disabled) return;
       e.currentTarget.style.background = danger
         ? (isDark ? 'rgba(248,81,73,0.18)' : 'rgba(207,34,46,0.12)')
         : (isDark ? 'rgba(31,111,235,0.2)' : 'rgba(9,105,218,0.12)');
@@ -445,9 +603,11 @@ const ContextMenuItem: React.FC<{ icon: React.ReactNode, label: string, onClick:
     }}
     onMouseLeave={(e) => {
       e.currentTarget.style.background = 'transparent';
-      e.currentTarget.style.color = danger ? (isDark ? '#ff7b72' : '#cf222e') : (isDark ? '#8b949e' : '#57606a');
+      e.currentTarget.style.color = disabled
+        ? (isDark ? '#484f58' : '#8c959f')
+        : danger ? (isDark ? '#ff7b72' : '#cf222e') : (isDark ? '#8b949e' : '#57606a');
     }}
-    onClick={onClick}
+    onClick={() => { if (!disabled) onClick(); }}
   >
     <span className="w-4 flex items-center">{icon}</span>
     <span>{label}</span>
@@ -455,3 +615,37 @@ const ContextMenuItem: React.FC<{ icon: React.ReactNode, label: string, onClick:
 );
 
 export default BranchPanel;
+
+const ShortcutIconButton: React.FC<{
+  icon: React.ReactNode;
+  title: string;
+  disabled?: boolean;
+  danger?: boolean;
+  isDark: boolean;
+  idleColor: string;
+  hoverBg: string;
+  disabledColor: string;
+  onClick: () => void;
+}> = ({ icon, title, disabled = false, danger = false, isDark, idleColor, hoverBg, disabledColor, onClick }) => (
+  <button
+    type="button"
+    title={title}
+    disabled={disabled}
+    className="flex h-6 w-6 items-center justify-center rounded transition-colors"
+    style={{
+      color: disabled ? disabledColor : danger ? (isDark ? '#ff7b72' : '#cf222e') : idleColor,
+      opacity: disabled ? 0.55 : 1,
+      cursor: disabled ? 'not-allowed' : 'pointer',
+    }}
+    onMouseEnter={(e) => {
+      if (disabled) return;
+      e.currentTarget.style.background = hoverBg;
+    }}
+    onMouseLeave={(e) => {
+      e.currentTarget.style.background = 'transparent';
+    }}
+    onClick={onClick}
+  >
+    {icon}
+  </button>
+);

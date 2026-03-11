@@ -16,8 +16,7 @@ const ThreePanelEditor: React.FC<ThreePanelEditorProps> = ({ filePath, onResolve
 
   useEffect(() => {
     if (!currentPath) return;
-    const fullPath = `${currentPath}/${filePath}`;
-    window.electronAPI.git.readFile(fullPath).then((content) => {
+    window.electronAPI.git.readFile(currentPath, filePath).then((content) => {
       // Very simple parsing for the 3 panels
       const lines = content.split('\n');
       let o = '', t = '', r = '';
@@ -48,8 +47,7 @@ const ThreePanelEditor: React.FC<ThreePanelEditorProps> = ({ filePath, onResolve
 
   const handleSave = async () => {
     if (!currentPath) return;
-    const fullPath = `${currentPath}/${filePath}`;
-    await window.electronAPI.git.writeFile(fullPath, result);
+    await window.electronAPI.git.writeFile(currentPath, filePath, result);
     // Stage the file after resolving
     await window.electronAPI.git.add(currentPath, filePath);
     onResolved();

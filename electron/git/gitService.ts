@@ -1,19 +1,52 @@
 import { ipcMain, dialog } from 'electron';
 import simpleGit, { SimpleGit } from 'simple-git';
 import fs from 'fs/promises';
+import path from 'path';
 
 const gitMap: Map<string, SimpleGit> = new Map();
+const MAX_GIT_CACHE_SIZE = 12;
+
+function resolveRepoFilePath(repoPath: string, relativePath: string): string {
+  if (!repoPath || !relativePath) {
+    throw new Error('repoPath and relativePath are required');
+  }
+  if (path.isAbsolute(relativePath)) {
+    throw new Error('absolute paths are not allowed');
+  }
+
+  const repoRoot = path.resolve(repoPath);
+  const targetPath = path.resolve(repoRoot, relativePath);
+  const relative = path.relative(repoRoot, targetPath);
+
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    throw new Error('path traversal is not allowed');
+  }
+
+  return targetPath;
+}
 
 function getGit(path: string): SimpleGit {
-  if (!gitMap.has(path)) {
-    const git = simpleGit({
-      baseDir: path,
-      binary: 'git',
-      maxConcurrentProcesses: 6,
-    });
-    gitMap.set(path, git);
+  const cached = gitMap.get(path);
+  if (cached) {
+    // LRU touch: move to latest
+    gitMap.delete(path);
+    gitMap.set(path, cached);
+    return cached;
   }
-  return gitMap.get(path)!;
+
+  const git = simpleGit({
+    baseDir: path,
+    binary: 'git',
+    maxConcurrentProcesses: 6,
+  });
+  gitMap.set(path, git);
+
+  if (gitMap.size > MAX_GIT_CACHE_SIZE) {
+    const oldestKey = gitMap.keys().next().value;
+    if (oldestKey) gitMap.delete(oldestKey);
+  }
+
+  return git;
 }
 
 ipcMain.handle('git:getLog', async (_, path: string, options?: any) => {
@@ -84,20 +117,21 @@ ipcMain.handle('git:getBranches', async (_, path: string) => {
   // git.branch()와 for-each-ref를 병렬 실행
   const [branches, rawData] = await Promise.all([
     git.branch(['-a']),
-    git.raw(['for-each-ref', '--format=%(refname:short)@%@%(upstream:track)', 'refs/heads'])
+    git.raw(['for-each-ref', '--format=%(refname:short)@%@%(upstream:short)@%@%(upstream:track)', 'refs/heads'])
       .catch(() => ''),
   ]);
 
   if (rawData) {
     const lines = rawData.trim().split('\n');
     for (const line of lines) {
-      const [name, track] = line.split('@%@');
-      if (name && track && branches.branches[name]) {
+      const [name, tracking, track] = line.split('@%@');
+      if (name && branches.branches[name]) {
         const b = branches.branches[name] as any;
-        const aheadMatch = track.match(/ahead (\d+)/);
-        const behindMatch = track.match(/behind (\d+)/);
+        const aheadMatch = (track || '').match(/ahead (\d+)/);
+        const behindMatch = (track || '').match(/behind (\d+)/);
         b.ahead = aheadMatch ? parseInt(aheadMatch[1], 10) : 0;
         b.behind = behindMatch ? parseInt(behindMatch[1], 10) : 0;
+        b.tracking = tracking || undefined;
       }
     }
   }
@@ -114,6 +148,7 @@ ipcMain.handle('git:getBranches', async (_, path: string) => {
         linkedWorkTree: (v as any).linkedWorkTree,
         ahead: (v as any).ahead ?? 0,
         behind: (v as any).behind ?? 0,
+        tracking: (v as any).tracking,
       }])
     ),
   };
@@ -163,6 +198,28 @@ ipcMain.handle('git:pull', async (_, path: string) => {
   return true;
 });
 
+ipcMain.handle('git:pullBranch', async (_, path: string, branch: string, tracking?: string) => {
+  const git = getGit(path);
+
+  if (branch.startsWith('remotes/')) {
+    const remoteRef = branch.replace(/^remotes\//, '');
+    const [remoteName, ...remoteBranchParts] = remoteRef.split('/');
+    const remoteBranch = remoteBranchParts.join('/');
+    await git.fetch(remoteName, remoteBranch);
+    return true;
+  }
+
+  if (tracking) {
+    const [remoteName, ...remoteBranchParts] = tracking.split('/');
+    const remoteBranch = remoteBranchParts.join('/');
+    await git.fetch(remoteName, `${remoteBranch}:${branch}`);
+    return true;
+  }
+
+  await git.fetch('origin', `${branch}:${branch}`);
+  return true;
+});
+
 ipcMain.handle('git:fetch', async (_, path: string) => {
   const git = getGit(path);
   await git.fetch();
@@ -179,6 +236,11 @@ ipcMain.handle('git:checkIsRepo', async (_, path: string) => {
   }
 });
 
+ipcMain.handle('git:disposeRepo', async (_, path: string) => {
+  gitMap.delete(path);
+  return true;
+});
+
 ipcMain.handle('git:applyStash', async (_, path: string, index: number) => {
   const git = getGit(path);
   return await git.stash(['apply', `stash@{${index}}`]);
@@ -190,12 +252,14 @@ ipcMain.handle('git:getStashes', async (_, path: string) => {
   return stashes;
 });
 
-ipcMain.handle('git:readFile', async (_, path: string) => {
-  return await fs.readFile(path, 'utf-8');
+ipcMain.handle('git:readFile', async (_, repoPath: string, relativePath: string) => {
+  const targetPath = resolveRepoFilePath(repoPath, relativePath);
+  return await fs.readFile(targetPath, 'utf-8');
 });
 
-ipcMain.handle('git:writeFile', async (_, path: string, content: string) => {
-  return await fs.writeFile(path, content, 'utf-8');
+ipcMain.handle('git:writeFile', async (_, repoPath: string, relativePath: string, content: string) => {
+  const targetPath = resolveRepoFilePath(repoPath, relativePath);
+  return await fs.writeFile(targetPath, content, 'utf-8');
 });
 
 ipcMain.handle('git:getCommitFiles', async (_, path: string, hash: string) => {
