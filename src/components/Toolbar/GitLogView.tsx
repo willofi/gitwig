@@ -1,16 +1,39 @@
 import React from 'react';
 import { useRepoStore } from '@/store/repoStore';
-import { Terminal, Clock, CheckCircle2, AlertCircle, Search, Trash2 } from 'lucide-react';
+import { useShallow } from 'zustand/react/shallow';
+import { Terminal, Clock, CheckCircle2, AlertCircle, Search } from 'lucide-react';
 import { format } from 'date-fns';
 
 const GitLogView: React.FC = () => {
-  const { gitLogs, setViewMode } = useRepoStore();
+  const { gitLogs, setViewMode } = useRepoStore(useShallow(state => ({
+    gitLogs: state.gitLogs,
+    setViewMode: state.setViewMode,
+  })));
   const [filter, setFilter] = React.useState('');
+  const normalizedFilter = React.useMemo(() => filter.trim().toLowerCase(), [filter]);
+  const filteredLogs = React.useMemo(() => {
+    if (!normalizedFilter) return gitLogs;
 
-  const filteredLogs = gitLogs.filter(log => 
-    log.command.toLowerCase().includes(filter.toLowerCase()) ||
-    (log.error || '').toLowerCase().includes(filter.toLowerCase())
-  );
+    return gitLogs.filter(log =>
+      log.command.toLowerCase().includes(normalizedFilter) ||
+      (log.error || '').toLowerCase().includes(normalizedFilter)
+    );
+  }, [gitLogs, normalizedFilter]);
+  const stats = React.useMemo(() => {
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const log of gitLogs) {
+      if (log.status === 'success') successCount += 1;
+      if (log.status === 'error') errorCount += 1;
+    }
+
+    return {
+      total: gitLogs.length,
+      successCount,
+      errorCount,
+    };
+  }, [gitLogs]);
 
   return (
     <div className="flex-1 flex flex-col bg-[#0d1117] text-[#c9d1d9] overflow-hidden">
@@ -103,9 +126,9 @@ const GitLogView: React.FC = () => {
       {/* Footer / Stats */}
       <div className="px-6 py-3 border-t border-[#30363d] bg-[#161b22] text-[11px] text-[#8b949e] flex justify-between">
         <div className="flex gap-4">
-          <span>Total: <strong>{gitLogs.length}</strong> commands</span>
-          <span className="text-[#3fb950]">Success: <strong>{gitLogs.filter(l => l.status === 'success').length}</strong></span>
-          <span className="text-[#f85149]">Errors: <strong>{gitLogs.filter(l => l.status === 'error').length}</strong></span>
+          <span>Total: <strong>{stats.total}</strong> commands</span>
+          <span className="text-[#3fb950]">Success: <strong>{stats.successCount}</strong></span>
+          <span className="text-[#f85149]">Errors: <strong>{stats.errorCount}</strong></span>
         </div>
         <div className="italic">Logs are kept for the current session only</div>
       </div>
