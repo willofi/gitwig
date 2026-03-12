@@ -22,6 +22,8 @@ const CommitDetail: React.FC = () => {
   const [diff, setDiff] = useState<string>('');
   const activeFileRef = useRef<string | null>(null);
   const activeHashRef = useRef<string | null>(null);
+  const commitCacheRef = useRef(new Map<string, { files: { status: string, path: string }[], body: string }>());
+  const diffCacheRef = useRef(new Map<string, string>());
 
   // paint 전에 동기적으로 초기화
   useLayoutEffect(() => {
@@ -36,6 +38,13 @@ const CommitDetail: React.FC = () => {
   useEffect(() => {
     if (!selectedCommit || !currentPath) return;
     const hash = selectedCommit.hash;
+    const cached = commitCacheRef.current.get(hash);
+
+    if (cached) {
+      setLoaded(cached);
+      return;
+    }
+
     Promise.all([
       window.electronAPI.git.getCommitFiles(currentPath, hash).catch(() => []),
       runWithLog(`git show ${hash.substring(0, 7)}`, () =>
@@ -45,7 +54,9 @@ const CommitDetail: React.FC = () => {
       if (hash !== activeHashRef.current) return;
       // %B 포맷은 subject 포함 전체 메시지를 반환하므로 첫 줄(= message와 동일) 제거
       const body = (rawBody || '').trim().split('\n').slice(1).join('\n').trim();
-      setLoaded({ files: files || [], body });
+      const nextLoaded = { files: files || [], body };
+      commitCacheRef.current.set(hash, nextLoaded);
+      setLoaded(nextLoaded);
     });
   }, [selectedCommit?.hash, currentPath]);
 
@@ -64,6 +75,14 @@ const CommitDetail: React.FC = () => {
     if (!currentPath || !selectedCommit) return;
     setSelectedFile(filePath);
     activeFileRef.current = filePath;
+    const diffCacheKey = `${selectedCommit.hash}:${filePath}`;
+    const cachedDiff = diffCacheRef.current.get(diffCacheKey);
+
+    if (cachedDiff !== undefined) {
+      setDiff(cachedDiff);
+      return;
+    }
+
     setDiff('');
 
     try {
@@ -78,7 +97,9 @@ const CommitDetail: React.FC = () => {
       );
       // 빠르게 다른 파일 클릭 시 이전 결과 무시
       if (activeFileRef.current === filePath) {
-        setDiff(fileDiff || '');
+        const nextDiff = fileDiff || '';
+        diffCacheRef.current.set(diffCacheKey, nextDiff);
+        setDiff(nextDiff);
       }
     } catch {
       if (activeFileRef.current === filePath) setDiff('');

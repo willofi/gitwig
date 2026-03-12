@@ -60,6 +60,9 @@ const THEME = {
 const DiffViewer: React.FC<DiffViewerProps> = ({ diff, fileName }) => {
   const { isDark } = useTheme();
   const t = isDark ? THEME.dark : THEME.light;
+  const lines = React.useMemo(() => parseUnifiedDiff(diff), [diff]);
+  const { adds, dels } = React.useMemo(() => getDiffStats(lines), [lines]);
+
   if (!diff || !diff.trim()) {
     return (
       <div
@@ -70,9 +73,6 @@ const DiffViewer: React.FC<DiffViewerProps> = ({ diff, fileName }) => {
       </div>
     );
   }
-
-  const lines = parseUnifiedDiff(diff);
-  const { adds, dels } = getDiffStats(lines);
 
   return (
     <div
