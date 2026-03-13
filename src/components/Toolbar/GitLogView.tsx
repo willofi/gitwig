@@ -1,13 +1,14 @@
 import React from 'react';
 import { useRepoStore } from '@/store/repoStore';
 import { useShallow } from 'zustand/react/shallow';
-import { Terminal, Clock, CheckCircle2, AlertCircle, Search } from 'lucide-react';
+import { Terminal, Clock, CheckCircle2, AlertCircle, Search, X } from 'lucide-react';
 import { format } from 'date-fns';
 
 const GitLogView: React.FC = () => {
-  const { gitLogs, setViewMode } = useRepoStore(useShallow(state => ({
+  const { gitLogs, setViewMode, clearGitLogs } = useRepoStore(useShallow(state => ({
     gitLogs: state.gitLogs,
     setViewMode: state.setViewMode,
+    clearGitLogs: state.clearGitLogs,
   })));
   const [filter, setFilter] = React.useState('');
   const normalizedFilter = React.useMemo(() => filter.trim().toLowerCase(), [filter]);
@@ -34,6 +35,8 @@ const GitLogView: React.FC = () => {
       errorCount,
     };
   }, [gitLogs]);
+  const hasLogs = gitLogs.length > 0;
+  const isFilteredEmpty = hasLogs && filteredLogs.length === 0;
 
   return (
     <div className="flex-1 flex flex-col bg-[#0d1117] text-[#c9d1d9] overflow-hidden">
@@ -60,6 +63,13 @@ const GitLogView: React.FC = () => {
               className="bg-[#0d1117] border border-[#30363d] rounded-md pl-9 pr-3 py-1.5 text-sm focus:outline-none focus:border-[#1f6feb] w-64 transition-all"
             />
           </div>
+          <button
+            onClick={clearGitLogs}
+            disabled={!hasLogs}
+            className="px-3 py-1.5 bg-[#21262d] hover:bg-[#30363d] disabled:opacity-50 disabled:hover:bg-[#21262d] border border-[#30363d] rounded-md text-sm font-medium transition-colors"
+          >
+            Clear Logs
+          </button>
           <button 
             onClick={() => setViewMode('repo')}
             className="px-4 py-1.5 bg-[#21262d] hover:bg-[#30363d] border border-[#30363d] rounded-md text-sm font-medium transition-colors"
@@ -74,8 +84,12 @@ const GitLogView: React.FC = () => {
         <div className="max-w-5xl mx-auto space-y-3">
           {filteredLogs.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-[#484f58]">
-              <Terminal size={48} strokeWidth={1} className="mb-4" />
-              <p className="italic">No activity recorded yet.</p>
+              {isFilteredEmpty ? (
+                <X size={48} strokeWidth={1} className="mb-4" />
+              ) : (
+                <Terminal size={48} strokeWidth={1} className="mb-4" />
+              )}
+              <p className="italic">{isFilteredEmpty ? 'No logs match the current search.' : 'No activity recorded yet.'}</p>
             </div>
           ) : (
             filteredLogs.map((log) => (

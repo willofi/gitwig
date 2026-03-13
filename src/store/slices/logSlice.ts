@@ -13,6 +13,7 @@ export interface LogSlice {
   isExecuting: boolean;
   addGitLog: (entry: Omit<GitLogEntry, 'id' | 'timestamp'>) => string;
   updateGitLog: (id: string, update: Partial<GitLogEntry>) => void;
+  clearGitLogs: () => void;
 }
 
 type SliceSet<T> = (partial: Partial<T> | ((state: T) => Partial<T>)) => void;
@@ -53,6 +54,14 @@ export function createLogSlice<T extends LogSlice>(set: SliceSet<T>): LogSlice {
           isExecuting: hasPending,
         } as Partial<T>;
       });
+    },
+
+    clearGitLogs: () => {
+      set(() => ({
+        gitLogs: [],
+        lastCommand: null,
+        isExecuting: false,
+      } as unknown as Partial<T>));
     },
   };
 }
